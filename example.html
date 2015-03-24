@@ -1,0 +1,19 @@
+<!DOCTYPE html><html><head><script src="bindbind.js"></script><script>
+
+var viewModel=bindbind({features:['no extended syntax','no templates','plain view model'],color:'red'})
+
+setInterval(function(){
+viewModel.color=['red','green','blue'][parseInt(Math.random()*3)]
+},1000)
+
+</script></head><body>
+
+Full operative two-way data binding with
+
+<ul>
+<li bb-features></li>
+</ul>
+
+<span bb-color="gray" style="color:gray" class="gray" color="gray">gray</span>
+
+</body></html>
