@@ -207,15 +207,22 @@
     for(b=0;b<a;b++)
       obj=obj[path[b]];
 
-    if(value!==undefined)
-      obj[path[a]]=value;
+    if(value!==undefined){
+      if(path.args===undefined)
+        obj[path[a]]=value;
+      else{
+        if(path.args.ind!==undefined)
+          path.args.splice(path.args.ind,1,value);
+        obj[path[a]].apply(obj,path.args);
+      }
+    }
 
     return obj[path[a]];
   }
 
   function findBindingPaths(node,placeholder,nodePaths,pathPrefix)
   {
-    var a,b,possiblePaths,path;
+    var a,b,possiblePaths,path,k;
 
     nodePaths=nodePaths||[];
     pathPrefix=pathPrefix||[];
@@ -234,14 +241,33 @@
     });
 
     if(placeholder){
-      for(var k in node.style){
-        if(['cssText'].indexOf(k)===-1){
-          path=['style',k];
-          var value=byPath(node,path);
-          if(typeof value==='string'&&value.indexOf(placeholder)>-1)
-            nodePaths.push(pathPrefix.concat(path));
-        }
+      if(node.style)
+        for(k in node.style)
+          if((node.style.getPropertyValue(k)||'').indexOf(placeholder)>-1){
+            path=pathPrefix.concat(['style','setProperty']);
+            path.args=[k,undefined];
+            path.args.ind=1;
+            nodePaths.push(path);
+          }
+
+      if(node.classList&&node.classList.contains(placeholder)){
+        path=pathPrefix.concat(['classList','remove']);
+        path.args=[placeholder];
+        nodePaths.push(path);
+      
+        path=pathPrefix.concat(['classList','add']);
+        path.args=[undefined];
+        path.args.ind=0;
+        nodePaths.push(path);
       }
+
+      if(node.attributes)
+        for(k=node.attributes.length;k--;)
+          if(['style','class'].indexOf(node.attributes[k].nodeName)===-1)
+            if(node.attributes[k].nodeValue.indexOf(placeholder)>-1){
+              path=pathPrefix.concat(['attributes',k,'nodeValue']);
+              nodePaths.push(path);
+            }
     }
 
     if((a=node.childNodes.length)&&placeholder)
