@@ -286,26 +286,29 @@
 
   function collectBindableElements()
   {
-    var a,b,c,d,e,f,g;
+    var a,b,c,d,e,f,g,h;
 
-    a=[];
-    g=[];
-    b=document.body.getElementsByTagName('*');
+    a=[],g=[],b=document.body.getElementsByTagName('*');
 
     for(c=b.length;c--;)
       for(d=b[c].attributes.length;d--;)
         if(b[c].attributes[d].name.indexOf('bb-')===0){
           f=b[c].attributes[d].name.substring(3).split(':');
-          
-          if((e=g.indexOf(b[c]))===-1){
-            g.push(b[c]);
-            e=a.push({anchorElement:b[c],bindingData:[]})-1;
-          }
-          
-          a[e].bindingData.push({modelPath:f,bindingPaths:findBindingPaths(b[c],
-            b[c].attributes[d].value)});
 
-          // b[c].attributes.removeNamedItem(b[c].attributes.item(d).name);
+          if(-1===(e=g.indexOf(f[0])))
+            g.push(f[0]),
+            e=a.push({modelPath:f,bindingData:[]})-1;
+
+          for(h=a[e].bindingData.length;h--;)
+            if(a[e].bindingData[h].anchorElements[0].parentNode===b[c].parentNode)
+              break;
+
+          if(h>-1)
+            a[e].bindingData[h].anchorElements.push(b[c]);
+
+          else
+            a[e].bindingData.push({anchorElements:[b[c]],bindingPaths:
+              findBindingPaths(b[c],b[c].attributes[d].value)});
         }
 
     return a;
@@ -314,23 +317,25 @@
   function bind()
   {
     for(var l=bindableElements.length;l--;){
-      var anchorElements=[bindableElements[l].anchorElement];
-      var w=Math.max.apply(Math,bindableElements[l].bindingData.map(function(k){
-        var u=ObservingWrapper.getSourceObject(viewModel[k.modelPath[0]]);
-        return (u&&Array.isArray(u)&&u.length)||0;
-      }));
-
-      if(w>1)
-        for(var q=0;q<w-1;q++){
-          var f=anchorElements[q].cloneNode(true);
-          anchorElements[q].parentNode.insertBefore(f,anchorElements[q].
-            nextSibling);
-          anchorElements.push(f);
-        }
+      var userModelPath=bindableElements[l].modelPath;
+      var u=ObservingWrapper.getSourceObject(viewModel[userModelPath[0]]);
+      var w=(u&&Array.isArray(u)&&u.length)||0;
+      
        
       for(var o=bindableElements[l].bindingData.length;o--;){
         var bindingPaths=bindableElements[l].bindingData[o].bindingPaths;
-        var userModelPath=bindableElements[l].bindingData[o].modelPath;
+        var anchorElements=bindableElements[l].bindingData[o].anchorElements;
+
+        if(w>1)
+          for(var q=0;q<w-1;q++){
+            if(anchorElements[q+1]!==undefined)
+              continue
+
+            var f=anchorElements[q].cloneNode(true);
+            anchorElements[q].parentNode.insertBefore(f,anchorElements[q].
+              nextSibling);
+            anchorElements.push(f);
+          }
 
         if(Array.isArray(ObservingWrapper.getSourceObject(viewModel[
           userModelPath[0]])))
