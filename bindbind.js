@@ -1,6 +1,8 @@
 
 !function(){
 
+  "use strict";
+
   var viewModel,bindableElements;
 
   // ObservingWrapper
@@ -31,6 +33,12 @@
 
     Object.defineProperty(this.observingKeys,'__observingWrapper',{value:this});
     this.defineObservableProperties();
+  }
+
+  ObservingWrapper.getSourceObject = function(obj) {
+    if(obj.__observingWrapper)
+      return obj.__observingWrapper.sourceObject;
+    return obj;
   }
 
   ObservingWrapper.prototype.addChangeHandler=function(){
@@ -106,7 +114,7 @@
   }
 
   ObservingWrapper.prototype.notifyObservers = function() {
-    var specificHandlers,i;
+    var specificHandlers,i,n;
     
     function reduceArgs(args){
       return Array.prototype.slice.call(args,1);
@@ -163,22 +171,10 @@
   // bindbind
   function c(){console.log.apply(console,arguments)}
 
-  function nodeInsertAfter(referenceNode, newNode) {
-    referenceNode.parentNode.insertBefore(newNode,referenceNode.nextSibling);
-  }
-
-  function bindElementPaths2ModelPath(anchorElement,bindingPaths,modelPath)
-  {
-    c('bindElementPaths2ModelPath',{anchorElement:anchorElement,bindingPaths:bindingPaths,modelPath:modelPath});
-
-    for(var k=bindingPaths.length;k--;)
-      bindModelPropertyToElement(modelPath,anchorElement,bindingPaths[k]);
-  }
-
-  function bindModelPropertyToElement(modelPath,element,valuePath)
+  function bindModelProperty2Element(modelPath,element,valuePath)
   {
     c('bindModelPropertyToElement',{modelPath:modelPath,element:element,valuePath:valuePath})
-    var a,b;
+    var a,b,ow;
 
     a=modelPath.slice(0,-1);
     b=modelPath.slice(-1)[0];
@@ -193,6 +189,14 @@
     ow.addChangeHandler(b,function(propertyValue){
       byPath(element,valuePath,propertyValue);
     });
+  }
+
+  function bindElementPaths2ModelPath(anchorElement,bindingPaths,modelPath)
+  {
+    c('bindElementPaths2ModelPath',{anchorElement:anchorElement,bindingPaths:bindingPaths,modelPath:modelPath});
+
+    for(var k=bindingPaths.length;k--;)
+      bindModelProperty2Element(modelPath,anchorElement,bindingPaths[k]);
   }
 
   function byPath(obj,path,value)
@@ -230,11 +234,11 @@
     [['nodeValue'],['value']].forEach(function(path){
       var value=byPath(node,path);
 
-      if(typeof value==='string'&&(placeholder?value.indexOf(placeholder)>-1:true)){
-        nodePaths.push(pathPrefix.concat(path));
-        // byPath(node,path,'');
-      }
-      else if(!placeholder){
+      if(typeof value==='string'&&(placeholder?value.indexOf(placeholder)>-1:
+        true))
+          nodePaths.push(pathPrefix.concat(path));
+
+      else if(value===null&&!placeholder){
         node.appendChild(document.createTextNode(''));
         nodePaths.push(pathPrefix.concat(['childNodes',0,'nodeValue']));
       }
@@ -250,7 +254,9 @@
             nodePaths.push(path);
           }
 
-      if(node.classList&&node.classList.contains(placeholder)){
+      if(node.classList&&placeholder.indexOf(' ')===-1&&node.classList.contains(
+        placeholder))
+      {
         path=pathPrefix.concat(['classList','remove']);
         path.args=[placeholder];
         nodePaths.push(path);
@@ -272,7 +278,8 @@
 
     if((a=node.childNodes.length)&&placeholder)
       while(a--)
-        findBindingPaths(node.childNodes[a],placeholder,nodePaths,pathPrefix.concat(['childNodes',a]));
+        findBindingPaths(node.childNodes[a],placeholder,nodePaths,pathPrefix.
+          concat(['childNodes',a]));
 
     return nodePaths;
   }
@@ -309,14 +316,15 @@
     for(var l=bindableElements.length;l--;){
       var anchorElements=[bindableElements[l].anchorElement];
       var w=Math.max.apply(Math,bindableElements[l].bindingData.map(function(k){
-        var u=viewModel[k.modelPath[0]];
+        var u=ObservingWrapper.getSourceObject(viewModel[k.modelPath[0]]);
         return (u&&Array.isArray(u)&&u.length)||0;
       }));
 
       if(w>1)
         for(var q=0;q<w-1;q++){
           var f=anchorElements[q].cloneNode(true);
-          nodeInsertAfter(anchorElements[q],f);
+          anchorElements[q].parentNode.insertBefore(f,anchorElements[q].
+            nextSibling);
           anchorElements.push(f);
         }
        
@@ -324,7 +332,8 @@
         var bindingPaths=bindableElements[l].bindingData[o].bindingPaths;
         var userModelPath=bindableElements[l].bindingData[o].modelPath;
 
-        if(Array.isArray(viewModel[userModelPath[0]]))
+        if(Array.isArray(ObservingWrapper.getSourceObject(viewModel[
+          userModelPath[0]])))
           for(var j=viewModel[userModelPath[0]].length;j--;){
             var modelPath=userModelPath.slice();
             modelPath.splice(1,0,j);
