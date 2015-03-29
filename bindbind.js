@@ -185,6 +185,10 @@
       ow=new ObservingWrapper(byPath(viewModel,a));
       byPath(viewModel,a,ow.observingKeys);
     }
+
+    if(valuePath[valuePath.length-1]==='nodeValue'&&!byPath(element,valuePath
+      .concat().splice(0,2)))
+        element.appendChild(document.createTextNode(''));
       
     ow.addChangeHandler(b,function(propertyValue){
       byPath(element,valuePath,propertyValue);
@@ -238,10 +242,8 @@
         true))
           nodePaths.push(pathPrefix.concat(path));
 
-      else if(value===null&&!placeholder){
-        node.appendChild(document.createTextNode(''));
+      else if(value===null&&!placeholder)
         nodePaths.push(pathPrefix.concat(['childNodes',0,'nodeValue']));
-      }
     });
 
     if(placeholder){
@@ -304,7 +306,7 @@
               break;
 
           if(h>-1)
-            a[e].bindingData[h].anchorElements.push(b[c]);
+            a[e].bindingData[h].anchorElements.unshift(b[c]);
 
           else
             a[e].bindingData.push({anchorElements:[b[c]],bindingPaths:
@@ -329,7 +331,7 @@
         if(w>1)
           for(var q=0;q<w-1;q++){
             if(anchorElements[q+1]!==undefined)
-              continue
+              continue;
 
             var f=anchorElements[q].cloneNode(true);
             anchorElements[q].parentNode.insertBefore(f,anchorElements[q].
