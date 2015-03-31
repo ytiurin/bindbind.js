@@ -189,6 +189,39 @@
   // bindbind
   function c(){console.log.apply(console,arguments)}
 
+  function bindElementPaths2ArraySplice(anchorElements,bindingPaths,userModelPath)
+  {
+    var a,ow;
+
+    a=userModelPath.slice(0,1);
+    console.log(a)
+    ow=(byPath(viewModel,a)).__observingWrapper;
+    
+    if(ow===undefined){
+      ow=new ObservingWrapper(byPath(viewModel,a));
+      byPath(viewModel,a,ow.observableKeys);
+    }
+
+    ow.addChangeHandler(function(changes){
+      for(var m=0;m<changes.length;m++)
+        if(changes[m].type==='splice'){
+          if(changes[m].addedCount)
+            for(var k=0;k<changes[m].addedCount;k++){
+              var q=changes[m].index+k-1;
+              var f=anchorElements[q].cloneNode(true);
+              anchorElements[q].parentNode.insertBefore(f,anchorElements[q].
+                nextSibling);
+              anchorElements.splice(changes[m].index+k,1,f);
+
+              var j=q+1;
+              var modelPath=userModelPath.slice();
+              modelPath.splice(1,0,j);
+              bindElementPaths2ModelPath(anchorElements[j],bindingPaths,modelPath);
+            }
+        }
+    });
+  }
+
   function bindModelProperty2Element(modelPath,element,valuePath)
   {
     c('bindModelPropertyToElement',{modelPath:modelPath,element:element,valuePath:valuePath})
@@ -360,12 +393,15 @@
 
         if(Array.isArray(ObservingWrapper.getSourceObject(viewModel[
           userModelPath[0]])))
+        {
+          bindElementPaths2ArraySplice(anchorElements,bindingPaths,userModelPath);
+
           for(var j=viewModel[userModelPath[0]].length;j--;){
             var modelPath=userModelPath.slice();
             modelPath.splice(1,0,j);
             bindElementPaths2ModelPath(anchorElements[j],bindingPaths,modelPath);
           }
-        
+        }
         else
           bindElementPaths2ModelPath(anchorElements[0],bindingPaths,userModelPath);
       }
