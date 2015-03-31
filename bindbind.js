@@ -6,6 +6,11 @@
   var viewModel,bindableElements;
 
   // ObservingWrapper
+  function cropArgs(args,n)
+  {
+    return Array.prototype.slice.call(args,n);
+  }
+
   function getDeepPropertyNames(obj)
   {
     var proto,names,protoNames,reduceNames,i,n;
@@ -27,11 +32,11 @@
   function ObservingWrapper(sourceObject,initHandler)
   {
     this.sourceObject=sourceObject||undefined;
-    this.observingKeys={};
+    this.observableKeys={};
     this.changeHandlers=[];
     this.specificHandlers={};
 
-    Object.defineProperty(this.observingKeys,'__observingWrapper',{value:this});
+    Object.defineProperty(this.observableKeys,'__observingWrapper',{value:this});
     this.defineObservableProperties();
   }
 
@@ -60,21 +65,23 @@
       {
         this.specificHandlers[userPropertyName].push(userChangeHandler);
         typeof this.sourceObject[userPropertyName]!=='function'&&
-          userChangeHandler.call(this.sourceObject,this.sourceObject[
-          userPropertyName]);
+          userChangeHandler.call(this.sourceObject,[{name:userPropertyName,
+            object:this.observableKeys,type:'update',oldValue:this.sourceObject
+            [userPropertyName]}]);
       }
     }
     else{
       this.changeHandlers.indexOf(userChangeHandler)===-1&&this.changeHandlers
         .push(userChangeHandler);
-      for(key in this.observingKeys)
+      for(key in this.observableKeys)
         typeof this.sourceObject[key]!=='function'&&userChangeHandler.call(this.
-          sourceObject,key,this.sourceObject[key]);
+          observableKeys,[{name:key,object:this.observableKeys,type:'update',
+          oldValue:this.sourceObject[key]}]);
     }
   }
 
   ObservingWrapper.prototype.defineObservableProperties = function() {
-    for(var propertyNames=getDeepPropertyNames(this.sourceObject,this.observingKeys),
+    for(var propertyNames=getDeepPropertyNames(this.sourceObject,this.observableKeys),
       i=0,n=propertyNames.length; i<n; i++)
       this.defineObservableProperty(propertyNames[i]);
   }
@@ -90,42 +97,49 @@
       ow.setPropertyValue(propertyName, userValue);
     }
     
-    Object.defineProperty(this.observingKeys, propertyName, {enumerable:isEnum, 
+    Object.defineProperty(this.observableKeys, propertyName, {enumerable:isEnum, 
       configurable:true, get:get, set:set});
   }
 
-  ObservingWrapper.prototype.getPropertyValue = function(propertyName) {
+  ObservingWrapper.prototype.getPropertyValue=function(propertyName){
     var ow=this;
-    return typeof this.sourceObject[propertyName] !== 'function' ? this.
-      sourceObject[propertyName] : function() {
-        var
-        length=ow.sourceObject.length,
-        result=ow.sourceObject[propertyName].apply(ow.sourceObject,arguments);
+    return typeof this.sourceObject[propertyName]!=='function'
+      ? this.sourceObject[propertyName] 
+      : function(){var len,ok,res,changes;
 
-        if(length&&length!==ow.sourceObject.length) {
-          ow.undefineObservableProperties();
-          ow.defineObservableProperties();
-        }
+          len=ow.sourceObject.length,
+          res=ow.sourceObject[propertyName].apply(ow.sourceObject,arguments);
 
-        ow.notifyObservers(propertyName,arguments,result);
+          if(len&&len!==ow.sourceObject.length)
+            ow.undefineObservableProperties(),
+            ow.defineObservableProperties();
 
-        return result;
-      };
+          ok=ow.observableKeys,changes=[{name:propertyName,object:ok,type:'call'
+            ,arguments:arguments,result:res}];
+          
+          if(propertyName==='push')
+            changes=[{object:ok,type:'splice',index:ow.sourceObject.length-1,
+              removed:[],addedCount:1}];
+          
+          else if(propertyName==='splice')
+            changes=[{object:ok,type:'splice',index:arguments[0],removed:res,
+              addedCount:cropArgs(arguments,2).length}];
+
+          ow.notifyObservers(changes);
+
+          return res;
+        };
   }
 
-  ObservingWrapper.prototype.notifyObservers = function() {
+  ObservingWrapper.prototype.notifyObservers=function(changes){
     var specificHandlers,i,n;
-    
-    function reduceArgs(args){
-      return Array.prototype.slice.call(args,1);
-    }
 
-    if(specificHandlers=this.specificHandlers[arguments[0]])
+    if(specificHandlers=this.specificHandlers[changes[0].name])
       for(i=0,n=specificHandlers.length;i<n;i++)
-        specificHandlers[i].apply(this.sourceObject,reduceArgs(arguments));
+        specificHandlers[i].call(this.observableKeys,changes);
 
     for(i=0,n=this.changeHandlers.length;i<n;i++)
-      this.changeHandlers[i].apply(this.sourceObject,arguments);
+      this.changeHandlers[i].call(this.observableKeys,changes);
   }
 
   ObservingWrapper.prototype.removeChangeHandler = function() {
@@ -155,17 +169,21 @@
     }
   }
 
-  ObservingWrapper.prototype.setPropertyValue = function(propertyName,propertyValue) {
-    if (this.sourceObject[propertyName] !== propertyValue) {
-      this.sourceObject[propertyName] = propertyValue;
-      this.notifyObservers(propertyName, propertyValue);
+  ObservingWrapper.prototype.setPropertyValue=function(propertyName,
+    propertyValue){var oldValue;
+
+    if(this.sourceObject[propertyName]!==propertyValue){
+      oldValue=this.sourceObject[propertyName];
+      this.sourceObject[propertyName]=propertyValue;
+      this.notifyObservers([{name:propertyName,object:this.sourceObject,type:
+        'update',oldValue:oldValue}]);
     }
   }
 
   ObservingWrapper.prototype.undefineObservableProperties = function() {
-    for(var propertyNames=getDeepPropertyNames(this.observingKeys),i=0,n=
+    for(var propertyNames=getDeepPropertyNames(this.observableKeys),i=0,n=
       propertyNames.length; i<n; i++)
-      delete this.observingKeys[i];
+      delete this.observableKeys[i];
   }
 
   // bindbind
@@ -183,15 +201,16 @@
     
     if(ow===undefined){
       ow=new ObservingWrapper(byPath(viewModel,a));
-      byPath(viewModel,a,ow.observingKeys);
+      byPath(viewModel,a,ow.observableKeys);
     }
 
     if(valuePath[valuePath.length-1]==='nodeValue'&&!byPath(element,valuePath
       .concat().splice(0,2)))
         element.appendChild(document.createTextNode(''));
       
-    ow.addChangeHandler(b,function(propertyValue){
-      byPath(element,valuePath,propertyValue);
+    ow.addChangeHandler(b,function(changes){
+      for(var m=0;m<changes.length;m++)
+        byPath(element,valuePath,changes[m].object[changes[m].name]);
     });
   }
 
@@ -364,7 +383,7 @@
 
   function bindbind(userViewModel)
   {
-    viewModel=(new ObservingWrapper(userViewModel)).observingKeys;
+    viewModel=(new ObservingWrapper(userViewModel)).observableKeys;
 
     if(document.readyState==='complete')
       bind();
