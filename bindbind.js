@@ -194,7 +194,6 @@
     var a,ow;
 
     a=userModelPath.slice(0,1);
-    console.log(a)
     ow=(byPath(viewModel,a)).__observingWrapper;
     
     if(ow===undefined){
@@ -427,7 +426,10 @@
     return viewModel;
   }
 
-  document.addEventListener("DOMContentLoaded",afterDOMContentLoaded,false);
+  if(document.readyState==='complete')
+    afterDOMContentLoaded();
+  else
+    document.addEventListener("DOMContentLoaded",afterDOMContentLoaded,false);
 
   if(window.define===undefined)
     window.bindbind=bindbind;
