@@ -337,7 +337,75 @@
     return nodePaths;
   }
 
+  function mergeBindingData(destData,srcData)
+  {
+    var a,modelPathIn;
+
+    modelPathIn=false;
+    for(a=0;a<destData.length;a++)
+      modelPathIn=destData[a].modelPath.reduce(function(r,m,i){
+        return srcData.modelPath[i]===m&&r},true)||modelPathIn;
+
+    if(!modelPathIn)
+      destData.push({modelPath:srcData.modelPath,bindingPaths:srcData.bindingPaths});
+  }
+
+  function mergeItemsIntoBindable(bindable,items)
+  {
+    var a,b;
+// c('^^',items)
+    for(a=0;a<items.length;a++){
+      for(b=0;b<bindable.length;b++){
+        if(bindable[b].modelProperty===items[a].modelPath[0]){
+          if(bindable[b].anchorElements.indexOf(items[a].anchorElement)===-1){
+            if(bindable[b].anchorElements[0].parentNode===items[a].anchorElement
+              .parentNode)
+            {
+              bindable[b].anchorElements.push(items[a].anchorElement);
+              items[a]=undefined;
+              break;
+            }
+          }
+          else{
+            mergeBindingData(bindable[b].bindingData,items[a])
+            items[a]=undefined;
+            break;
+          }
+        }
+      }
+// c('%%',items[a])
+      if(items[a])
+        bindable.push({anchorElements:[items[a].anchorElement],bindingData:
+          [{modelPath:items[a].modelPath,bindingPaths:items[a].bindingPaths}],
+          modelProperty:items[a].modelPath[0]});
+    }
+  }
+
   function collectBindableElements()
+  {
+    var a,b,d,e,f,g,h;
+
+    a=document.body.getElementsByTagName('*'),f=[];
+
+    for(b=0;b<a.length;b++){
+      e=[];
+      
+      for(d=0;d<a[b].attributes.length;d++)
+        if(a[b].attributes[d].name.indexOf('bb-')===0){
+          g=a[b].attributes[d].name.substring(3).split(':').splice(0,2);
+
+          e.push({anchorElement:a[b],modelPath:g,bindingPaths:
+            findBindingPaths(a[b],a[b].attributes[d].value)});
+        }
+
+      if(e.length)
+        mergeItemsIntoBindable(f,e);
+    }
+
+    return f;
+  }
+
+  function __collectBindableElements()
   {
     var a,b,c,d,e,f,g,h;
 
@@ -426,7 +494,7 @@
     return viewModel;
   }
 
-  if(document.readyState==='complete')
+  if(document.readyState==='complete'||document.readyState==='interactive')
     afterDOMContentLoaded();
   else
     document.addEventListener("DOMContentLoaded",afterDOMContentLoaded,false);
