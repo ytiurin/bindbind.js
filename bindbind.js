@@ -437,15 +437,14 @@
 
   function bind()
   {
-    for(var l=bindableElements.length;l--;){
-      var userModelPath=bindableElements[l].modelPath;
-      var u=ObservingWrapper.getSourceObject(viewModel[userModelPath[0]]);
+    for(var l=0;l<bindableElements.length;l++){
+      var anchorElements=bindableElements[l].anchorElements;
+      var u=ObservingWrapper.getSourceObject(viewModel[bindableElements[l].modelProperty]);
       var w=(u&&Array.isArray(u)&&u.length)||0;
-      
        
       for(var o=bindableElements[l].bindingData.length;o--;){
+        var userModelPath=bindableElements[l].bindingData[o].modelPath;
         var bindingPaths=bindableElements[l].bindingData[o].bindingPaths;
-        var anchorElements=bindableElements[l].bindingData[o].anchorElements;
 
         if(w>1)
           for(var q=0;q<w-1;q++){
@@ -479,7 +478,7 @@
   {
     bindableElements=collectBindableElements();
     c('bindableElements',bindableElements);
-    
+
     if(viewModel)
       bind();
   }
@@ -488,13 +487,13 @@
   {
     viewModel=(new ObservingWrapper(userViewModel)).observableKeys;
 
-    if(document.readyState==='complete')
+    if(['interactive','complete'].indexOf(document.readyState)>-1)
       bind();
 
     return viewModel;
   }
 
-  if(document.readyState==='complete'||document.readyState==='interactive')
+  if(['interactive','complete'].indexOf(document.readyState)>-1)
     afterDOMContentLoaded();
   else
     document.addEventListener("DOMContentLoaded",afterDOMContentLoaded,false);
