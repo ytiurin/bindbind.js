@@ -192,7 +192,7 @@
   function bindElementPaths2ArraySplice(anchorElements,bindingPaths,userModelPath)
   {
     var a,ow;
-
+c(anchorElements,bindingPaths,userModelPath)
     a=userModelPath.slice(0,1);
     ow=(byPath(viewModel,a)).__observingWrapper;
     
@@ -441,21 +441,21 @@
       var anchorElements=bindableElements[l].anchorElements;
       var u=ObservingWrapper.getSourceObject(viewModel[bindableElements[l].modelProperty]);
       var w=(u&&Array.isArray(u)&&u.length)||0;
+
+      if(w>1)
+        for(var q=0;q<w-1;q++){
+          if(anchorElements[q+1]!==undefined)
+            continue;
+
+          var f=anchorElements[q].cloneNode(true);
+          anchorElements[q].parentNode.insertBefore(f,anchorElements[q].
+            nextSibling);
+          anchorElements.push(f);
+        }
        
       for(var o=bindableElements[l].bindingData.length;o--;){
         var userModelPath=bindableElements[l].bindingData[o].modelPath;
         var bindingPaths=bindableElements[l].bindingData[o].bindingPaths;
-
-        if(w>1)
-          for(var q=0;q<w-1;q++){
-            if(anchorElements[q+1]!==undefined)
-              continue;
-
-            var f=anchorElements[q].cloneNode(true);
-            anchorElements[q].parentNode.insertBefore(f,anchorElements[q].
-              nextSibling);
-            anchorElements.push(f);
-          }
 
         if(Array.isArray(ObservingWrapper.getSourceObject(viewModel[
           userModelPath[0]])))
