@@ -219,7 +219,7 @@
   {
     function pm(params,maxI,i)
     {
-      if(i<maxI){
+      if(i<=maxI){
         var s=byPath(params.element,params.valuePath);
         s=params.text.substr(0,i)+s.substr(i);
         byPath(params.element,params.valuePath,s);
@@ -285,12 +285,10 @@ c(anchorElements,bindingPaths,userModelPath)
     ow.addChangeHandler(b,function(changes){
       c('changes',changes)
       for(var m=0;m<changes.length;m++)
-        try{
-
-        animateTextFill(element,valuePath,changes[m].object[changes[m].name]);
-      }catch(e){
-        // byPath(element,valuePath,changes[m].object[changes[m].name]);
-      }
+        if(valuePath[valuePath.length-1]==='nodeValue')
+          animateTextFill(element,valuePath,changes[m].object[changes[m].name]);
+        else
+          byPath(element,valuePath,changes[m].object[changes[m].name]);
     });
   }
 
