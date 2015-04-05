@@ -232,16 +232,18 @@
     pm(1);
   }
 
-  function bindElementPaths2ArraySplice(anchorElements,bindingPaths,userModelPath)
+  function bindElementPaths2ArraySplice(bi)
   {
+c('4. bindElementPaths2ArraySplice',{bi:bi})
+
     var a,ow;
-c(anchorElements,bindingPaths,userModelPath)
-    a=userModelPath.slice(0,1);
-    ow=(byPath(viewModel,a)).__observingWrapper;
+
+    a=[bi.modelProperty];
+    ow=(router(viewModel).get(a).value).__observingWrapper;
     
     if(ow===undefined){
       ow=new ObservingWrapper(byPath(viewModel,a));
-      byPath(viewModel,a,ow.observableKeys);
+      router(viewModel).get(a).value=ow.observableKeys;
     }
 
     ow.addChangeHandler(function(changes){
@@ -250,15 +252,18 @@ c(anchorElements,bindingPaths,userModelPath)
           if(changes[m].addedCount)
             for(var k=0;k<changes[m].addedCount;k++){
               var q=changes[m].index+k-1;
-              var f=anchorElements[q].cloneNode(true);
-              anchorElements[q].parentNode.insertBefore(f,anchorElements[q].
+              var f=bi.anchorElements[q].cloneNode(true);
+              bi.anchorElements[q].parentNode.insertBefore(f,bi.anchorElements[q].
                 nextSibling);
-              anchorElements.splice(changes[m].index+k,1,f);
+              bi.anchorElements.splice(changes[m].index+k,1,f);
 
               var j=q+1;
-              var modelPath=userModelPath.slice();
-              modelPath.splice(1,0,j);
-              bindElementPaths2ModelPath(anchorElements[j],bindingPaths,modelPath);
+              for(var i=0;i<bi.bindingData.length;i++){
+                var modelPath=bi.bindingData[i].modelPath.slice();
+                modelPath.splice(1,0,j);
+                bindElementPaths2ModelPath(bi.anchorElements[j],bi.bindingData[i].
+                  bindingPaths,modelPath);
+              }
             }
         }
     });
@@ -284,7 +289,6 @@ c(anchorElements,bindingPaths,userModelPath)
         element.appendChild(document.createTextNode(''));
       
     ow.addChangeHandler(b,function(changes){
-      c('changes',changes)
       for(var m=0;m<changes.length;m++)
         if(valuePath[valuePath.length-1]==='nodeValue')
           animateTextFill(element,valuePath,changes[m].object[changes[m].name]);
@@ -494,36 +498,6 @@ c(anchorElements,bindingPaths,userModelPath)
     return f;
   }
 
-  function __collectBindableElements()
-  {
-    var a,b,c,d,e,f,g,h;
-
-    a=[],g=[],b=document.body.getElementsByTagName('*');
-
-    for(c=b.length;c--;)
-      for(d=b[c].attributes.length;d--;)
-        if(b[c].attributes[d].name.indexOf('bb-')===0){
-          f=b[c].attributes[d].name.substring(3).split(':');
-
-          if(-1===(e=g.indexOf(f[0])))
-            g.push(f[0]),
-            e=a.push({modelPath:f,bindingData:[]})-1;
-
-          for(h=a[e].bindingData.length;h--;)
-            if(a[e].bindingData[h].anchorElements[0].parentNode===b[c].parentNode)
-              break;
-
-          if(h>-1)
-            a[e].bindingData[h].anchorElements.unshift(b[c]);
-
-          else
-            a[e].bindingData.push({anchorElements:[b[c]],bindingPaths:
-              findBindingPaths(b[c],b[c].attributes[d].value)});
-        }
-
-    return a;
-  }
-
   function bind()
   {
     for(var l=0;l<bindableElements.length;l++){
@@ -531,7 +505,7 @@ c(anchorElements,bindingPaths,userModelPath)
       var u=ObservingWrapper.getSourceObject(viewModel[bindableElements[l].modelProperty]);
       var w=(u&&Array.isArray(u)&&u.length)||0;
 
-      if(w>1)
+      if(w>1){
         for(var q=0;q<w-1;q++){
           if(anchorElements[q+1]!==undefined)
             continue;
@@ -541,16 +515,16 @@ c(anchorElements,bindingPaths,userModelPath)
             nextSibling);
           anchorElements.push(f);
         }
-       
+
+        bindElementPaths2ArraySplice(bindableElements[l]);
+      }
+
       for(var o=bindableElements[l].bindingData.length;o--;){
         var userModelPath=bindableElements[l].bindingData[o].modelPath;
         var bindingPaths=bindableElements[l].bindingData[o].bindingPaths;
 
-        if(Array.isArray(ObservingWrapper.getSourceObject(viewModel[
-          userModelPath[0]])))
+        if(Array.isArray(u))
         {
-          bindElementPaths2ArraySplice(anchorElements,bindingPaths,userModelPath);
-
           for(var j=viewModel[userModelPath[0]].length;j--;){
             var modelPath=userModelPath.slice();
             modelPath.splice(1,0,j);
