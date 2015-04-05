@@ -217,18 +217,19 @@
   
   function animateTextFill(element,valuePath,text)
   {
-    function pm(params,maxI,i)
+    function pm(i)
     {
       if(i<=maxI){
-        var s=byPath(params.element,params.valuePath);
-        s=params.text.substr(0,i)+s.substr(i);
-        byPath(params.element,params.valuePath,s);
-        setTimeout(function(){pm(params,maxI,i+1)},10);
+        var s=elementValueRouter.value;
+        s=text.substr(0,i)+s.substr(i);
+        elementValueRouter.value=s;
+        setTimeout(function(){pm(i+1)},10);
       }
     }
     
-    var maxI=Math.max(text.length,byPath(element,valuePath).length);
-    pm({element:element,valuePath:valuePath,text:text},maxI,1);
+    var elementValueRouter=router(element).get(valuePath);
+    var maxI=Math.max(text.length,elementValueRouter.value.length);
+    pm(1);
   }
 
   function bindElementPaths2ArraySplice(anchorElements,bindingPaths,userModelPath)
@@ -323,6 +324,48 @@ c(anchorElements,bindingPaths,userModelPath)
     }
 
     return obj[path[a]];
+  }
+
+  function router(obj)
+  {
+    function getRouteModifier(route)
+    {
+      function getValue()
+      {
+        return obj[route[a]];
+      }
+
+      function setValue(value)
+      {
+        if(route.args===undefined)
+          obj[route[a]]=value;
+        else{
+          if(route.args.ind!==undefined)
+            route.args.splice(route.args.ind,1,value);
+          obj[route[a]].apply(obj,route.args);
+        }
+      }
+
+      function toString()
+      {
+        return getValue().toString();
+      }
+
+      if(route.length===0)
+        return obj;
+
+      var a=route.length-1;
+      for(var b=0;b<a;b++)
+        obj=obj[route[b]];
+
+      var r={toString:toString};
+      Object.defineProperty(r,'value',{get:getValue,set:setValue,configurable:
+        true,enumerable:true});
+
+      return r;
+    }
+
+    return {get:getRouteModifier};
   }
 
   function findBindingPaths(node,placeholder,nodePaths,pathPrefix)
