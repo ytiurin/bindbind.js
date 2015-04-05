@@ -193,8 +193,8 @@
   {
     function reduceText(params)
     {
-      var text=byPath(params.element,params.valuePath).slice(0,-1);
-      byPath(params.element,params.valuePath,text);
+      var text=route(params.element).using(params.valuePath).value.slice(0,-1);
+      route(params.element).using(params.valuePath).value=text;
 
       if(text.length)
         setTimeout(function(){reduceText(params)},10);
@@ -204,9 +204,9 @@
     
     function raiseText(params)
     {
-      var l=byPath(params.element,params.valuePath).length+1;
+      var l=route(params.element).using(params.valuePath).value.length+1;
       var text=params.text.substr(0,l);
-      byPath(params.element,params.valuePath,text);
+      route(params.element).using(params.valuePath).value=text;
 
       if(text.length!==params.text.length)
         setTimeout(function(){raiseText(params)},10);
@@ -227,7 +227,7 @@
       }
     }
     
-    var elementValueRouter=router(element).get(valuePath);
+    var elementValueRouter=route(element).using(valuePath);
     var maxI=Math.max(text.length,elementValueRouter.value.length);
     pm(1);
   }
@@ -239,11 +239,11 @@ c('4. bindElementPaths2ArraySplice',{bi:bi})
     var a,ow;
 
     a=[bi.modelProperty];
-    ow=(router(viewModel).get(a).value).__observingWrapper;
+    ow=(route(viewModel).using(a).value).__observingWrapper;
     
     if(ow===undefined){
-      ow=new ObservingWrapper(byPath(viewModel,a));
-      router(viewModel).get(a).value=ow.observableKeys;
+      ow=new ObservingWrapper(route(viewModel).using(a).value);
+      route(viewModel).using(a).value=ow.observableKeys;
     }
 
     ow.addChangeHandler(function(changes){
@@ -276,16 +276,15 @@ c('4. bindElementPaths2ArraySplice',{bi:bi})
 
     a=modelPath.slice(0,-1);
     b=modelPath.slice(-1)[0];
-
-    ow=(byPath(viewModel,a)).__observingWrapper;
+    ow=(route(viewModel).using(a).value).__observingWrapper;
     
     if(ow===undefined){
-      ow=new ObservingWrapper(byPath(viewModel,a));
-      byPath(viewModel,a,ow.observableKeys);
+      ow=new ObservingWrapper(route(viewModel).using(a).value);
+      route(viewModel).using(a).value=ow.observableKeys;
     }
 
-    if(valuePath[valuePath.length-1]==='nodeValue'&&!byPath(element,valuePath
-      .concat().splice(0,2)))
+    if(valuePath[valuePath.length-1]==='nodeValue'&&!route(element).using(
+      valuePath.concat().splice(0,2)).value)
         element.appendChild(document.createTextNode(''));
       
     ow.addChangeHandler(b,function(changes){
@@ -293,7 +292,7 @@ c('4. bindElementPaths2ArraySplice',{bi:bi})
         if(valuePath[valuePath.length-1]==='nodeValue')
           animateTextFill(element,valuePath,changes[m].object[changes[m].name]);
         else
-          byPath(element,valuePath,changes[m].object[changes[m].name]);
+          route(element).using(valuePath).value=changes[m].object[changes[m].name];
     });
   }
 
@@ -305,37 +304,15 @@ c('4. bindElementPaths2ArraySplice',{bi:bi})
       bindModelProperty2Element(modelPath,anchorElement,bindingPaths[k]);
   }
 
-  function byPath(obj,path,value)
-  {
-    var a,b;
-    // c('byPath',{obj:obj,path:path,value:value})
-    
-    if(path.length===0)
-      return obj;
-
-    a=path.length-1;
-    for(b=0;b<a;b++)
-      obj=obj[path[b]];
-
-    if(value!==undefined){
-      if(path.args===undefined)
-        obj[path[a]]=value;
-      else{
-        if(path.args.ind!==undefined)
-          path.args.splice(path.args.ind,1,value);
-        obj[path[a]].apply(obj,path.args);
-      }
-    }
-
-    return obj[path[a]];
-  }
-
-  function router(obj)
+  function route(obj)
   {
     function getRouteModifier(route)
     {
       function getValue()
       {
+        if(route.length===0)
+          return obj;
+
         return obj[route[a]];
       }
 
@@ -355,12 +332,10 @@ c('4. bindElementPaths2ArraySplice',{bi:bi})
         return getValue().toString();
       }
 
-      if(route.length===0)
-        return obj;
-
       var a=route.length-1;
-      for(var b=0;b<a;b++)
-        obj=obj[route[b]];
+      if(a>0)
+        for(var b=0;b<a;b++)
+          obj=obj[route[b]];
 
       var r={toString:toString};
       Object.defineProperty(r,'value',{get:getValue,set:setValue,configurable:
@@ -369,7 +344,7 @@ c('4. bindElementPaths2ArraySplice',{bi:bi})
       return r;
     }
 
-    return {get:getRouteModifier};
+    return {using:getRouteModifier};
   }
 
   function findBindingPaths(node,placeholder,nodePaths,pathPrefix)
@@ -380,7 +355,7 @@ c('4. bindElementPaths2ArraySplice',{bi:bi})
     pathPrefix=pathPrefix||[];
 
     [['nodeValue'],['value']].forEach(function(path){
-      var value=byPath(node,path);
+      var value=route(node).using(path).value;
 
       if(typeof value==='string'&&(placeholder?value.indexOf(placeholder)>-1:
         true))
