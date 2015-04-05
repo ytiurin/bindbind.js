@@ -189,6 +189,48 @@
   // bindbind
   function c(){console.log.apply(console,arguments)}
 
+  function animateTextReduceRaise(element,valuePath,text)
+  {
+    function reduceText(params)
+    {
+      var text=byPath(params.element,params.valuePath).slice(0,-1);
+      byPath(params.element,params.valuePath,text);
+
+      if(text.length)
+        setTimeout(function(){reduceText(params)},10);
+      else
+        raiseText(params);
+    }
+    
+    function raiseText(params)
+    {
+      var l=byPath(params.element,params.valuePath).length+1;
+      var text=params.text.substr(0,l);
+      byPath(params.element,params.valuePath,text);
+
+      if(text.length!==params.text.length)
+        setTimeout(function(){raiseText(params)},10);
+    }
+
+    reduceText({element:element,valuePath:valuePath,text:text});
+  }
+  
+  function animateTextFill(element,valuePath,text)
+  {
+    function pm(params,maxI,i)
+    {
+      if(i<maxI){
+        var s=byPath(params.element,params.valuePath);
+        s=params.text.substr(0,i)+s.substr(i);
+        byPath(params.element,params.valuePath,s);
+        setTimeout(function(){pm(params,maxI,i+1)},10);
+      }
+    }
+    
+    var maxI=Math.max(text.length,byPath(element,valuePath).length);
+    pm({element:element,valuePath:valuePath,text:text},maxI,1);
+  }
+
   function bindElementPaths2ArraySplice(anchorElements,bindingPaths,userModelPath)
   {
     var a,ow;
@@ -241,8 +283,14 @@ c(anchorElements,bindingPaths,userModelPath)
         element.appendChild(document.createTextNode(''));
       
     ow.addChangeHandler(b,function(changes){
+      c('changes',changes)
       for(var m=0;m<changes.length;m++)
-        byPath(element,valuePath,changes[m].object[changes[m].name]);
+        try{
+
+        animateTextFill(element,valuePath,changes[m].object[changes[m].name]);
+      }catch(e){
+        // byPath(element,valuePath,changes[m].object[changes[m].name]);
+      }
     });
   }
 
