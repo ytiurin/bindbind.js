@@ -265,6 +265,14 @@ c('4. bindElementPaths2ArraySplice',{bi:bi})
                   bindingPaths,modelPath);
               }
             }
+          else if(changes[m].removed.length){
+            for(var k=0;k<changes[m].removed.length;k++){
+              var s=changes[m].index+k;
+              bi.anchorElements[s].parentNode.removeChild(bi.anchorElements[s]);
+            }
+            
+            bi.anchorElements.splice(changes[m].index,changes[m].removed.length);
+          }
         }
     });
   }
