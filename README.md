@@ -1,7 +1,7 @@
 bindbind.js
 ========
 
-Data binding the simple way.
+Data binding made simple.
 
 ##Usage
 Declare binding anchors
@@ -20,15 +20,19 @@ Declare binding anchors
 </a>
 ```
 
-Bind view model
+Bind view model to the DOM
 ```javascript
-viewModel=bindbind({notification:[{image:'img/avatar-2.jpg',author:'Thomas White',action:'posted on your profile page',when:'17 seconds ago',link:'#link9'}]})
+viewModel=bindbind({notification:[]})
 ```
 Update view model
 ```javascript
-viewModel.notification.push({image:'img/avatar-3.jpg',author:'Doina Slaivici',action:'uploaded photo',when:'10 minutes ago',link:'#link8'})
+viewModel.notification.push({
+  image:'img/avatar-2.jpg',
+  author:'Thomas White',action:'posted on your profile page',
+  when:'17 seconds ago',
+  link:'#link9'})
 ```
-Modify view model
+Modify view model properties
 ```javascript
 viewModel.notification[0].author='Elizabeth Owens'
 ```
