@@ -1,11 +1,11 @@
 /*
- * bindbind.js v0.2
+ * bindbind.js v0.2.1
  * https://github.com/ytiurin/bindbindjs
  *
  * Copyright (c) 2015 Yevhen Tiurin
  * Licensed under MIT (https://raw.githubusercontent.com/ytiurin/bindbindjs/master/LICENSE)
  *
- * April 16, 2015
+ * April 17, 2015
  */
 !function(){
 
@@ -155,6 +155,82 @@
   // bindbind
   function c(){console.log.apply(console,arguments)}
 
+  function route(obj)
+  {
+    function getRouteModifier(route)
+    {
+      function getValue()
+      {
+        if(route.length===0)
+          return obj;
+
+        return obj[route[a]];
+      }
+
+      function setValue(value)
+      {
+        if(route.args===undefined)
+          obj[route[a]]=value;
+        else{
+          if(route.args.ind!==undefined)
+            route.args.splice(route.args.ind,1,value);
+          obj[route[a]].apply(obj,route.args);
+        }
+      }
+
+      function toString()
+      {
+        return getValue().toString();
+      }
+
+      var a=route.length-1;
+      if(a>0)
+        for(var b=0;b<a;b++)
+          obj=obj[route[b]];
+
+      var r={toString:toString};
+      Object.defineProperty(r,'value',{get:getValue,set:setValue,configurable:
+        true,enumerable:true});
+
+      return r;
+    }
+
+    return {using:getRouteModifier};
+  }
+
+  function appendElements(es,animate)
+  {
+    function appendAndAnimateFadeIn(es)
+    {
+      var el=es.splice(0,1)[0];
+      var element=el.clone;
+      var beforeElement=el.next?el.anchor.nextSibling:el.anchor;
+      el.anchor.parentNode.insertBefore(el.clone,beforeElement);
+
+      var t={
+        opacity:element.style.opacity,
+        transition:element.style.transition
+      }
+
+      element.style.opacity='0';
+      element.style.transition='opacity 0.7s';
+      element.offsetWidth=element.offsetWidth;
+      element.style.opacity='1';
+
+      setTimeout(function(){
+        element.style.opacity=t.opacity;
+        element.style.transition=t.transition;
+      },700);
+
+      setTimeout(function(){
+        if(es.length)
+          appendAndAnimateFadeIn(es);
+      },100);
+    }
+
+    appendAndAnimateFadeIn(es);
+  }
+
   function animateTextReduceRaise(element,valuePath,text)
   {
     function reduceText(params)
@@ -215,14 +291,19 @@ c('4. bindElementPaths2ArraySplice',{bi:bi})
     ow.addChangeHandler(function(changes){
       for(var m=0;m<changes.length;m++)
         if(changes[m].type==='splice'){
-          if(changes[m].addedCount)
+          if(changes[m].addedCount){
+            var es=[];
+
             for(var k=0;k<changes[m].addedCount;k++){
               var q=changes[m].index+k-1;
+              var n=q>-1;
+              q=n?q:0;
               var f=bi.anchorElements[q].cloneNode(true);
-              bi.anchorElements[q].parentNode.insertBefore(f,bi.anchorElements[q].
-                nextSibling);
+              // bi.anchorElements[q].parentNode.insertBefore(f,bi.anchorElements[q].
+              //   nextSibling);
+              es.push({anchor:bi.anchorElements[q],clone:f,next:n});
               bi.anchorElements.splice(changes[m].index+k,1,f);
-
+              
               var j=q+1;
               for(var i=0;i<bi.bindingData.length;i++){
                 var modelPath=bi.bindingData[i].modelPath.slice();
@@ -231,8 +312,12 @@ c('4. bindElementPaths2ArraySplice',{bi:bi})
                   bindingPaths,modelPath);
               }
             }
+
+            appendElements(es,true);
+          }
           else if(changes[m].removed.length){
             for(var k=0;k<changes[m].removed.length;k++){
+              c(changes[m].removed)
               var s=changes[m].index+k;
               bi.anchorElements[s].parentNode.removeChild(bi.anchorElements[s]);
             }
@@ -278,49 +363,6 @@ c('4. bindElementPaths2ArraySplice',{bi:bi})
 
     for(var k=bindingPaths.length;k--;)
       bindModelProperty2Element(modelPath,anchorElement,bindingPaths[k]);
-  }
-
-  function route(obj)
-  {
-    function getRouteModifier(route)
-    {
-      function getValue()
-      {
-        if(route.length===0)
-          return obj;
-
-        return obj[route[a]];
-      }
-
-      function setValue(value)
-      {
-        if(route.args===undefined)
-          obj[route[a]]=value;
-        else{
-          if(route.args.ind!==undefined)
-            route.args.splice(route.args.ind,1,value);
-          obj[route[a]].apply(obj,route.args);
-        }
-      }
-
-      function toString()
-      {
-        return getValue().toString();
-      }
-
-      var a=route.length-1;
-      if(a>0)
-        for(var b=0;b<a;b++)
-          obj=obj[route[b]];
-
-      var r={toString:toString};
-      Object.defineProperty(r,'value',{get:getValue,set:setValue,configurable:
-        true,enumerable:true});
-
-      return r;
-    }
-
-    return {using:getRouteModifier};
   }
 
   function findBindingPaths(node,placeholder,nodePaths,pathPrefix)
@@ -457,15 +499,21 @@ c('4. bindElementPaths2ArraySplice',{bi:bi})
       var w=(u&&Array.isArray(u)&&u.length)||0;
 
       if(w>1){
+        var es=[];
+        
         for(var q=0;q<w-1;q++){
           if(anchorElements[q+1]!==undefined)
             continue;
 
           var f=anchorElements[q].cloneNode(true);
-          anchorElements[q].parentNode.insertBefore(f,anchorElements[q].
-            nextSibling);
+          // anchorElements[q].parentNode.insertBefore(f,anchorElements[q].
+          //   nextSibling);
+          es.push({anchor:anchorElements[q],clone:f,next:true});
+
           anchorElements.push(f);
         }
+
+        appendElements(es,true);
 
         bindElementPaths2ArraySplice(bindableElements[l]);
       }
