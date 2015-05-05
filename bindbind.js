@@ -1,11 +1,11 @@
 /*
- * bindbind.js v0.2.1
+ * bindbind.js v0.2.2
  * https://github.com/ytiurin/bindbindjs
  *
  * Copyright (c) 2015 Yevhen Tiurin
  * Licensed under MIT (https://raw.githubusercontent.com/ytiurin/bindbindjs/master/LICENSE)
  *
- * April 17, 2015
+ * May 5, 2015
  */
 !function(){
 
@@ -37,7 +37,7 @@
     return names;
   }
 
-  function ObservingWrapper(sourceObject,initHandler)
+  function ObservingWrapper(sourceObject)
   {
     this.sourceObject=sourceObject||undefined;
     this.observableKeys={};
@@ -48,23 +48,21 @@
     this.defineObservableProperties();
   }
 
-  ObservingWrapper.getSourceObject = function(obj) {
-    if(obj.__observingWrapper)
-      return obj.__observingWrapper.sourceObject;
-    return obj;
-  }
-
   ObservingWrapper.prototype.addChangeHandler=function(userChangeHandler,
     callOnInit){
 
     this.changeHandlers.indexOf(userChangeHandler)===-1&&this.changeHandlers
       .push(userChangeHandler);
 
-    if(callOnInit||false)
-      for(var key in this.observableKeys)
-        typeof this.sourceObject[key]!=='function'&&userChangeHandler.call(this.
-          observableKeys,[{name:key,object:this.observableKeys,type:'update',
-          oldValue:this.sourceObject[key]}]);
+    if(callOnInit||false){
+      var changes=[];
+      for(var key in this.sourceObject)
+        if(typeof this.sourceObject[key]!=='function')
+          changes.push({name:key,object:this.sourceObject,type:'update',
+            oldValue:this.sourceObject[key]});
+
+      userChangeHandler.call(this.sourceObject,changes);
+    }
   }
 
   ObservingWrapper.prototype.defineObservableProperties = function() {
@@ -92,7 +90,7 @@
     var ow=this;
     return typeof this.sourceObject[propertyName]!=='function'
       ? this.sourceObject[propertyName] 
-      : function(){var len,ok,res,change;
+      : function(){var len,res,change,so;
 
           len=ow.sourceObject.length,
           res=ow.sourceObject[propertyName].apply(ow.sourceObject,arguments);
@@ -101,15 +99,16 @@
             ow.undefineObservableProperties(),
             ow.defineObservableProperties();
 
-          ok=ow.observableKeys,change={name:propertyName,object:ok,type:'call'
-            ,arguments:arguments,result:res};
+          so=ow.sourceObject;
+          change={name:propertyName,object:so,type:'call',arguments:arguments,
+            result:res};
           
           if(propertyName==='push')
-            change={object:ok,type:'splice',index:ow.sourceObject.length-1,
+            change={object:so,type:'splice',index:ow.sourceObject.length-1,
               removed:[],addedCount:1};
           
           else if(propertyName==='splice')
-            change={object:ok,type:'splice',index:arguments[0],removed:res,
+            change={object:so,type:'splice',index:arguments[0],removed:res,
               addedCount:cropArgs(arguments,2).length};
 
           ow.changes.push(change);
@@ -289,7 +288,7 @@ c('4. bindElementPaths2ArraySplice',{bi:bi})
     }
 
     ow.addChangeHandler(function(changes){
-      for(var m=0;m<changes.length;m++)
+      for(var m=changes.length;m--;)
         if(changes[m].type==='splice'){
           if(changes[m].addedCount){
             var es=[];
@@ -324,6 +323,7 @@ c('4. bindElementPaths2ArraySplice',{bi:bi})
             
             bi.anchorElements.splice(changes[m].index,changes[m].removed.length);
           }
+          break;
         }
     },true);
   }
@@ -347,12 +347,13 @@ c('4. bindElementPaths2ArraySplice',{bi:bi})
         element.appendChild(document.createTextNode(''));
       
     ow.addChangeHandler(function(changes){
-      for(var m=0;m<changes.length;m++)
+      for(var m=changes.length;m--;)
         if(changes[m].name===b){
           if(valuePath[valuePath.length-1]==='nodeValue'&&valuePath[valuePath.length-3]!=='attributes')
             animateTextFill(element,valuePath,changes[m].object[changes[m].name]);
           else
             route(element).using(valuePath).value=changes[m].object[changes[m].name];
+          break;
         }
     },true);
   }
@@ -495,7 +496,8 @@ c('4. bindElementPaths2ArraySplice',{bi:bi})
   {
     for(var l=0;l<bindableElements.length;l++){
       var anchorElements=bindableElements[l].anchorElements;
-      var u=ObservingWrapper.getSourceObject(viewModel[bindableElements[l].modelProperty]);
+      var y=viewModel[bindableElements[l].modelProperty];
+      var u=(y.__observingWrapper&&y.__observingWrapper.sourceObject)||y;
       var w=(u&&Array.isArray(u)&&u.length)||0;
 
       if(w>1){
