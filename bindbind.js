@@ -5,7 +5,7 @@
  * Copyright (c) 2015 Yevhen Tiurin
  * Licensed under MIT (https://raw.githubusercontent.com/ytiurin/bindbindjs/master/LICENSE)
  *
- * May 5, 2015
+ * May 25, 2015
  */
 !function(){
 
@@ -213,8 +213,9 @@
 
       element.style.opacity='0';
       element.style.transition='opacity 0.7s';
-      element.offsetWidth=element.offsetWidth;
-      element.style.opacity='1';
+      setTimeout(function(){
+        element.style.opacity='1';
+      });
 
       setTimeout(function(){
         element.style.opacity=t.opacity;
