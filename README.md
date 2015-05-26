@@ -28,8 +28,8 @@ var obj = {notification:[]};
 Bind it to DOM and recieve modifier
 ```javascript
 var bb = new bindbind(obj);
-// bb <- this is called modifier,
-//       it wraps your model and notifies other 
+// bb <- this is modifier, it wraps your
+//       model and notifies other 
 //       objects about it's changes
 ```
 Update view model using modifier
