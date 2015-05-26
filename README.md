@@ -6,13 +6,15 @@ Data binding made simple.
 ##Usage
 Declare binding anchors
 ```html
-<a class="notification" href="#nolink" 
+<a
   bb-notification:image="img/empty.png"
   bb-notification:author="Someone"
   bb-notification:action="did something"
   bb-notification:when="Some time ago"
-  bb-notification:link="#nolink">
-
+  bb-notification:link="#nolink"
+  
+  href="#nolink"
+>
   <img src="img/empty.png"/>
   <strong>Someone</strong>
   <span>did something</span>
@@ -20,19 +22,26 @@ Declare binding anchors
 </a>
 ```
 
-Bind view model to the DOM
+Declare view model
 ```javascript
-viewModel=bindbind({notification:[]})
+var obj={notification:[]};
 ```
-Update view model
+Bind it to DOM and recieve modifier
 ```javascript
-viewModel.notification.push({
+var bb=new bindbind(obj);
+```
+Update view model using modifier
+```javascript
+bb(obj.notification).push({
   image:'img/avatar-2.jpg',
   author:'Thomas White',action:'posted on your profile page',
   when:'17 seconds ago',
-  link:'#link9'})
+  link:'#link9'});
 ```
-Modify view model properties
+Modify properties
 ```javascript
-viewModel.notification[0].author='Elizabeth Owens'
+bb(obj.notification[0]).author='Elizabeth Owens';
 ```
+
+##Note
+This is still in beta.
