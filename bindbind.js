@@ -11,7 +11,7 @@
 
   "use strict";
 
-  var bindableElements,bbInstances;
+  var bindableElements,bbInstances,appendQueue,appendTimeId;
 
   // ObservingWrapper
   function cropArgs(args,n)
@@ -219,49 +219,53 @@
     return objWrapper;
   }
 
+  function appendElement(el)
+  {
+    var beforeElement=el.next?el.anchor.nextSibling:el.anchor;
+    el.anchor.parentNode.insertBefore(el.clone,beforeElement);
+  }
+
+  function continueAppendElements(animate)
+  {
+    if(appendTimeId)
+      return;
+
+    if(!appendQueue.length)
+      return;
+
+    var el=appendQueue.splice(0,1)[0];
+    var element=el.clone;
+    appendElement(el);
+
+    var t={
+      opacity:element.style.opacity,
+      transition:element.style.transition
+    }
+
+    element.style.opacity='0';
+    element.style.transition='opacity 0.7s';
+    setTimeout(function(){
+      element.style.opacity='1';
+
+      setTimeout(function(){
+        element.style.transition=t.transition;
+        setTimeout(function(){
+          element.style.opacity=t.opacity;
+        });
+      },700);
+    });
+
+    appendTimeId=setTimeout(function(){
+      appendTimeId=0;
+      continueAppendElements(animate);
+    },100);
+  }
+
   function appendElements(es,animate)
   {
-    function appendElement(el)
-    {
-      var beforeElement=el.next?el.anchor.nextSibling:el.anchor;
-      el.anchor.parentNode.insertBefore(el.clone,beforeElement);
-    }
-
-    function appendAndAnimateFadeIn(es)
-    {
-      var el=es.splice(0,1)[0];
-      var element=el.clone;
-      appendElement(el);
-
-      var t={
-        opacity:element.style.opacity,
-        transition:element.style.transition
-      }
-
-      element.style.opacity='0';
-      element.style.transition='opacity 0.7s';
-      setTimeout(function(){
-        element.style.opacity='1';
-
-        setTimeout(function(){
-          element.style.transition=t.transition;
-          setTimeout(function(){
-            element.style.opacity=t.opacity;
-          });
-        },700);
-      });
-
-      setTimeout(function(){
-        if(es.length)
-          appendAndAnimateFadeIn(es);
-      },100);
-    }
-
-    if(animate)
-      appendAndAnimateFadeIn(es);
-    else
-      for(var i=0;i<es.length;i++)
-        appendElement(es[i])
+    for(var i=0;i<es.length;i++)
+      appendQueue.push(es[i]);
+    continueAppendElements(animate);
   }
 
   function animateTextReduceRaise(element,valuePath,text)
@@ -330,13 +334,13 @@ c('4. bindElementPaths2ArraySplice',{bi:bi})
               // bi.anchorElements[q].parentNode.insertBefore(f,bi.anchorElements[q].
               //   nextSibling);
               es.push({anchor:bi.anchorElements[q],clone:f,next:n});
-              bi.anchorElements.splice(changes[m].index+k,1,f);
+              bi.anchorElements.splice(changes[m].index+k,0,f);
               
               var j=q+1;
               for(var i=0;i<bi.bindingData.length;i++){
                 var modelPath=bi.bindingData[i].modelPath.slice();
-                modelPath.splice(1,0,j);
-                bindElementPaths2ModelPath.call(inst,bi.anchorElements[j],
+                modelPath.splice(1,0,q);
+                bindElementPaths2ModelPath.call(inst,bi.anchorElements[q],
                   bi.bindingData[i].bindingPaths,modelPath);
               }
             }
@@ -345,7 +349,6 @@ c('4. bindElementPaths2ArraySplice',{bi:bi})
           }
           else if(changes[m].removed.length){
             for(var k=0;k<changes[m].removed.length;k++){
-              c(changes[m].removed)
               var s=changes[m].index+k;
               bi.anchorElements[s].parentNode.removeChild(bi.anchorElements[s]);
             }
@@ -374,7 +377,8 @@ c('4. bindElementPaths2ArraySplice',{bi:bi})
       for(var m=changes.length;m--;)
         if(changes[m].name===b){
           if(valuePath[valuePath.length-1]==='nodeValue'&&valuePath[valuePath.length-3]!=='attributes')
-            animateTextFill(element,valuePath,changes[m].object[changes[m].name]);
+            // animateTextFill(element,valuePath,changes[m].object[changes[m].name]);
+animateTextReduceRaise(element,valuePath,changes[m].object[changes[m].name]);
           else
             route(element).using(valuePath).value=changes[m].object[changes[m].name];
           break;
@@ -540,9 +544,10 @@ c('4. bindElementPaths2ArraySplice',{bi:bi})
         }
 
         appendElements(es,true);
-
-        bindElementPaths2ArraySplice.call(this,bindableElements[l]);
       }
+
+      if(Array.isArray(u))
+        bindElementPaths2ArraySplice.call(this,bindableElements[l]);
 
       for(var o=bindableElements[l].bindingData.length;o--;){
         var userModelPath=bindableElements[l].bindingData[o].modelPath;
@@ -591,6 +596,8 @@ c('4. bindElementPaths2ArraySplice',{bi:bi})
   }
 
   bbInstances=[];
+  appendQueue=[];
+  appendTimeId=0;
 
   if(['interactive','complete'].indexOf(document.readyState)>-1)
     afterDOMContentLoaded();
