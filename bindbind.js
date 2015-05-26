@@ -1,17 +1,17 @@
 /*
- * bindbind.js v0.2.2
+ * bindbind.js v0.2.3
  * https://github.com/ytiurin/bindbindjs
  *
  * Copyright (c) 2015 Yevhen Tiurin
  * Licensed under MIT (https://raw.githubusercontent.com/ytiurin/bindbindjs/master/LICENSE)
  *
- * May 25, 2015
+ * May 26, 2015
  */
 !function(){
 
   "use strict";
 
-  var viewModel,bindableElements;
+  var bindableElements,bbInstances;
 
   // ObservingWrapper
   function cropArgs(args,n)
@@ -197,14 +197,41 @@
     return {using:getRouteModifier};
   }
 
+  function getObservingWrapper(obj)
+  {
+    var objWrapper;
+
+    if(!obj)
+      return obj;
+
+    if(obj.observableKeys)
+      objWrapper=obj;
+    else
+      for(var i=0;i<this.wrappers.length;i++)
+        if(this.wrappers[i].sourceObject===obj){
+          objWrapper=this.wrappers[i];
+          break;
+        }
+
+    if(!objWrapper)
+      this.wrappers.push(objWrapper=new ObservingWrapper(obj));
+
+    return objWrapper;
+  }
+
   function appendElements(es,animate)
   {
+    function appendElement(el)
+    {
+      var beforeElement=el.next?el.anchor.nextSibling:el.anchor;
+      el.anchor.parentNode.insertBefore(el.clone,beforeElement);
+    }
+
     function appendAndAnimateFadeIn(es)
     {
       var el=es.splice(0,1)[0];
       var element=el.clone;
-      var beforeElement=el.next?el.anchor.nextSibling:el.anchor;
-      el.anchor.parentNode.insertBefore(el.clone,beforeElement);
+      appendElement(el);
 
       var t={
         opacity:element.style.opacity,
@@ -215,12 +242,14 @@
       element.style.transition='opacity 0.7s';
       setTimeout(function(){
         element.style.opacity='1';
-      });
 
-      setTimeout(function(){
-        element.style.opacity=t.opacity;
-        element.style.transition=t.transition;
-      },700);
+        setTimeout(function(){
+          element.style.transition=t.transition;
+          setTimeout(function(){
+            element.style.opacity=t.opacity;
+          });
+        },700);
+      });
 
       setTimeout(function(){
         if(es.length)
@@ -228,7 +257,11 @@
       },100);
     }
 
-    appendAndAnimateFadeIn(es);
+    if(animate)
+      appendAndAnimateFadeIn(es);
+    else
+      for(var i=0;i<es.length;i++)
+        appendElement(es[i])
   }
 
   function animateTextReduceRaise(element,valuePath,text)
@@ -278,15 +311,10 @@
   {
 c('4. bindElementPaths2ArraySplice',{bi:bi})
 
-    var a,ow;
+    var a,ow,inst=this;
 
     a=[bi.modelProperty];
-    ow=(route(viewModel).using(a).value).__observingWrapper;
-    
-    if(ow===undefined){
-      ow=new ObservingWrapper(route(viewModel).using(a).value);
-      route(viewModel).using(a).value=ow.observableKeys;
-    }
+    ow=getObservingWrapper.call(this,route(this.viewModel).using(a).value);
 
     ow.addChangeHandler(function(changes){
       for(var m=changes.length;m--;)
@@ -308,8 +336,8 @@ c('4. bindElementPaths2ArraySplice',{bi:bi})
               for(var i=0;i<bi.bindingData.length;i++){
                 var modelPath=bi.bindingData[i].modelPath.slice();
                 modelPath.splice(1,0,j);
-                bindElementPaths2ModelPath(bi.anchorElements[j],bi.bindingData[i].
-                  bindingPaths,modelPath);
+                bindElementPaths2ModelPath.call(inst,bi.anchorElements[j],
+                  bi.bindingData[i].bindingPaths,modelPath);
               }
             }
 
@@ -336,12 +364,7 @@ c('4. bindElementPaths2ArraySplice',{bi:bi})
 
     a=modelPath.slice(0,-1);
     b=modelPath.slice(-1)[0];
-    ow=(route(viewModel).using(a).value).__observingWrapper;
-    
-    if(ow===undefined){
-      ow=new ObservingWrapper(route(viewModel).using(a).value);
-      route(viewModel).using(a).value=ow.observableKeys;
-    }
+    ow=getObservingWrapper.call(this,route(this.viewModel).using(a).value);
 
     if(valuePath[valuePath.length-1]==='nodeValue'&&!route(element).using(
       valuePath.concat().splice(0,2)).value)
@@ -364,7 +387,7 @@ c('4. bindElementPaths2ArraySplice',{bi:bi})
     c('bindElementPaths2ModelPath',{anchorElement:anchorElement,bindingPaths:bindingPaths,modelPath:modelPath});
 
     for(var k=bindingPaths.length;k--;)
-      bindModelProperty2Element(modelPath,anchorElement,bindingPaths[k]);
+      bindModelProperty2Element.call(this,modelPath,anchorElement,bindingPaths[k]);
   }
 
   function findBindingPaths(node,placeholder,nodePaths,pathPrefix)
@@ -497,7 +520,7 @@ c('4. bindElementPaths2ArraySplice',{bi:bi})
   {
     for(var l=0;l<bindableElements.length;l++){
       var anchorElements=bindableElements[l].anchorElements;
-      var y=viewModel[bindableElements[l].modelProperty];
+      var y=this.viewModel[bindableElements[l].modelProperty];
       var u=(y.__observingWrapper&&y.__observingWrapper.sourceObject)||y;
       var w=(u&&Array.isArray(u)&&u.length)||0;
 
@@ -518,7 +541,7 @@ c('4. bindElementPaths2ArraySplice',{bi:bi})
 
         appendElements(es,true);
 
-        bindElementPaths2ArraySplice(bindableElements[l]);
+        bindElementPaths2ArraySplice.call(this,bindableElements[l]);
       }
 
       for(var o=bindableElements[l].bindingData.length;o--;){
@@ -527,14 +550,14 @@ c('4. bindElementPaths2ArraySplice',{bi:bi})
 
         if(Array.isArray(u))
         {
-          for(var j=viewModel[userModelPath[0]].length;j--;){
+          for(var j=this.viewModel[userModelPath[0]].length;j--;){
             var modelPath=userModelPath.slice();
             modelPath.splice(1,0,j);
-            bindElementPaths2ModelPath(anchorElements[j],bindingPaths,modelPath);
+            bindElementPaths2ModelPath.call(this,anchorElements[j],bindingPaths,modelPath);
           }
         }
         else
-          bindElementPaths2ModelPath(anchorElements[0],bindingPaths,userModelPath);
+          bindElementPaths2ModelPath.call(this,anchorElements[0],bindingPaths,userModelPath);
       }
     }
   }
@@ -544,19 +567,30 @@ c('4. bindElementPaths2ArraySplice',{bi:bi})
     bindableElements=collectBindableElements();
     c('bindableElements',bindableElements);
 
-    if(viewModel)
-      bind();
+    for(var i=0;i<bbInstances.length;i++)
+      bind.call(bbInstances[i]);
   }
 
-  function bindbind(userViewModel)
+  function bb(obj)
   {
-    viewModel=(new ObservingWrapper(userViewModel)).observableKeys;
+    return getObservingWrapper.call(this,obj).observableKeys;
+  }
+
+  function bbConstructor(userViewModel)
+  {
+    this.viewModel=userViewModel;
+    this.wrappers=[new ObservingWrapper(userViewModel)];
 
     if(['interactive','complete'].indexOf(document.readyState)>-1)
-      bind();
+      bind.call(this);
 
-    return viewModel;
+    var bbInstance=bb.bind(this);
+    bbInstances.push(this);
+
+    return bbInstance;
   }
+
+  bbInstances=[];
 
   if(['interactive','complete'].indexOf(document.readyState)>-1)
     afterDOMContentLoaded();
@@ -564,8 +598,8 @@ c('4. bindElementPaths2ArraySplice',{bi:bi})
     document.addEventListener("DOMContentLoaded",afterDOMContentLoaded,false);
 
   if(window.define===undefined)
-    window.bindbind=bindbind;
+    window.bindbind=bbConstructor;
   else
-    define(function(){return bindbind});
+    define(function(){return bbConstructor});
 
 }(window)
