@@ -4,7 +4,7 @@ bindbind.js
 Data binding made simple.
 
 ##Usage
-Declare binding anchors
+Declare binding anchors inside your html code, no templates.
 ```html
 <li
   bb-notification:author="Someone"
