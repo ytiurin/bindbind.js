@@ -1,16 +1,16 @@
 /*
- * bindbind.js v0.2.3
+ * bindbind.js v0.2.4
  * https://github.com/ytiurin/bindbindjs
  *
  * Copyright (c) 2015 Yevhen Tiurin
  * Licensed under MIT (https://raw.githubusercontent.com/ytiurin/bindbindjs/master/LICENSE)
  *
- * May 26, 2015
+ * June 21, 2015
  */
+
+"use strict";
+
 !function(){
-
-  "use strict";
-
   var bindableElements,bbInstances,appendQueue,appendTimeId;
 
   // ObservingWrapper
@@ -221,8 +221,10 @@
 
   function appendElement(el)
   {
-    var beforeElement=el.next?el.anchor.nextSibling:el.anchor;
-    el.anchor.parentNode.insertBefore(el.clone,beforeElement);
+    if(el.anchor.parentNode)
+      el.anchor.parentNode.insertBefore(el.clone,el.anchor);
+    else
+      el.parent.appendChild(el.clone);
   }
 
   function continueAppendElements(animate)
@@ -237,28 +239,32 @@
     var element=el.clone;
     appendElement(el);
 
-    var t={
-      opacity:element.style.opacity,
-      transition:element.style.transition
-    }
-
-    element.style.opacity='0';
-    element.style.transition='opacity 0.7s';
-    setTimeout(function(){
-      element.style.opacity='1';
-
+    if(animate){
+      var t={
+        opacity:element.style.opacity,
+        transition:element.style.transition
+      }
+      element.style.opacity='0';
+      element.style.transition='all 0.7s';
       setTimeout(function(){
-        element.style.transition=t.transition;
-        setTimeout(function(){
-          element.style.opacity=t.opacity;
-        });
-      },700);
-    });
+        element.style.opacity='1';
 
-    appendTimeId=setTimeout(function(){
-      appendTimeId=0;
+        setTimeout(function(){
+          element.style.transition=t.transition;
+          setTimeout(function(){
+            element.style.height=t.height;
+            element.style.opacity=t.opacity;
+          });
+        },700);
+      });
+
+      appendTimeId=setTimeout(function(){
+        appendTimeId=0;
+        continueAppendElements(animate);
+      },100);
+    }
+    else
       continueAppendElements(animate);
-    },100);
   }
 
   function appendElements(es,animate)
@@ -313,7 +319,7 @@
 
   function bindElementPaths2ArraySplice(bi)
   {
-c('4. bindElementPaths2ArraySplice',{bi:bi})
+c('bindElementPaths2ArraySplice',{bi:bi})
 
     var a,ow,inst=this;
 
@@ -327,21 +333,18 @@ c('4. bindElementPaths2ArraySplice',{bi:bi})
             var es=[];
 
             for(var k=0;k<changes[m].addedCount;k++){
-              var q=changes[m].index+k-1;
-              var n=q>-1;
-              q=n?q:0;
-              var f=bi.anchorElements[q].cloneNode(true);
-              // bi.anchorElements[q].parentNode.insertBefore(f,bi.anchorElements[q].
-              //   nextSibling);
-              es.push({anchor:bi.anchorElements[q],clone:f,next:n});
-              bi.anchorElements.splice(changes[m].index+k,0,f);
+              var q=changes[m].index+k;
+              var anchor=bi.anchorElements[q];
+              var clone=anchor.cloneNode(true);
+              // clone.style.backgroundColor=(['lightseagreen','lightgreen','lightcoral','lightcyan','lavenderblush','lightblue'])[parseInt(Math.random()*5)]
+              es.push({anchor:anchor,clone:clone,parent:bi.anchorParent});
+              bi.anchorElements.splice(q,0,clone);
               
-              var j=q+1;
               for(var i=0;i<bi.bindingData.length;i++){
                 var modelPath=bi.bindingData[i].modelPath.slice();
                 modelPath.splice(1,0,q);
-                bindElementPaths2ModelPath.call(inst,bi.anchorElements[q],
-                  bi.bindingData[i].bindingPaths,modelPath);
+                bindElementPaths2ModelPath.call(inst,clone,bi.bindingData[i].
+                  bindingPaths,modelPath);
               }
             }
 
@@ -490,8 +493,10 @@ animateTextReduceRaise(element,valuePath,changes[m].object[changes[m].name]);
       }
 // c('%%',items[a])
       if(items[a])
-        bindable.push({anchorElements:[items[a].anchorElement],bindingData:
-          [{modelPath:items[a].modelPath,bindingPaths:items[a].bindingPaths}],
+        bindable.push({anchorElements:[items[a].anchorElement],
+          anchorParent:items[a].anchorElement.parentNode,
+          bindingData:[{modelPath:items[a].modelPath,
+          bindingPaths:items[a].bindingPaths}],
           modelProperty:items[a].modelPath[0]});
     }
   }
@@ -526,28 +531,36 @@ animateTextReduceRaise(element,valuePath,changes[m].object[changes[m].name]);
       var anchorElements=bindableElements[l].anchorElements;
       var y=this.viewModel[bindableElements[l].modelProperty];
       var u=(y.__observingWrapper&&y.__observingWrapper.sourceObject)||y;
-      var w=(u&&Array.isArray(u)&&u.length)||0;
 
-      if(w>1){
-        var es=[];
-        
-        for(var q=0;q<w-1;q++){
-          if(anchorElements[q+1]!==undefined)
-            continue;
+      if(u&&Array.isArray(u)){
+        if(u.length>1){
+          var es=[];
 
-          var f=anchorElements[q].cloneNode(true);
-          // anchorElements[q].parentNode.insertBefore(f,anchorElements[q].
-          //   nextSibling);
-          es.push({anchor:anchorElements[q],clone:f,next:true});
+          for(var q=0;q<u.length-1;q++){
+            if(anchorElements[q+1]!==undefined)
+              continue;
 
-          anchorElements.push(f);
+            var f=anchorElements[q].cloneNode(true);
+            es.push({anchor:anchorElements[q],clone:f,next:true});
+
+            anchorElements.push(f);
+          }
+
+          appendElements(es,true);
         }
 
-        appendElements(es,true);
-      }
+        if(anchorElements.length>u.length)
+          bindableElements[l].anchorElements=anchorElements.reduce(function(
+            r,anchor,i){
+            if(i>=u.length)
+              anchorElements[i].parentNode.removeChild(anchorElements[i]);
+            // else
+              r.push(anchor);
+            return r;
+          },[]);
 
-      if(Array.isArray(u))
         bindElementPaths2ArraySplice.call(this,bindableElements[l]);
+      }
 
       for(var o=bindableElements[l].bindingData.length;o--;){
         var userModelPath=bindableElements[l].bindingData[o].modelPath;
