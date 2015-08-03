@@ -4,46 +4,47 @@ bindbind.js
 Data binding made simple.
 
 ##Usage
-Declare binding anchors inside your html code, no templates.
+Declare binding anchors inside your HTML code.
 ```html
-<li
-  bb-notification:author="Someone"
-  bb-notification:action="did something"
-  bb-notification:when="Some time ago"
-  bb-notification:image="img/empty.png"
-  bb-notification:link="#nolink"
->
-  <strong>Someone</strong>
-  <span>did something</span>
-  <small>Some time ago</small>
-  <img src="img/empty.png"/>
-  <a href="#nolink">Go check</a>
-</li>
+<table>
+  <tr bb-writers:name="Unknown" bb-writers:uri="#nolink">
+    <td><a href="#nolink">Unknown</a></td>
+  </tr>
+</table>
 ```
 
-Define view model
+Define view model and bind it to the DOM.
 ```javascript
-var obj = {notification:[]};
-```
-Bind it to DOM and recieve modifier
-```javascript
-var bb = new bindbind(obj);
-// bb <- this is modifier, it wraps your
-//       model and notifies other 
+var model = {writers:[]};
+var bb = new bindbind(model);
+// bb <- this is observing proxy object,
+//       it holds setters and getters of your
+//       model properties and notifies other
 //       objects about it's changes
 ```
-Update view model using modifier
+
+Update view model using observing proxy
 ```javascript
-bb(obj.notification).push({
-  author:'Thomas White',
-  action:'posted on your profile page',
-  when:'17 seconds ago',
-  image:'img/avatar-2.jpg',
-  link:'#link9'});
+bb(model.writers).push({
+  name:'Joseph Conrad',
+  uri:'https://en.wikipedia.org/wiki/Joseph_Conrad'});
+
+bb(model.writers).push({
+  name:'James Joyce',
+  uri:'https://en.wikipedia.org/wiki/James_Joyce'});
 ```
-Modify properties
-```javascript
-bb(obj.notification[0]).author='Elizabeth Owens';
+
+Resulting HTML
+
+```html
+<table>
+  <tr>
+    <td><a href="https://en.wikipedia.org/wiki/Joseph_Conrad">Joseph Conrad</a></td>
+  </tr>
+  <tr>
+    <td><a href="https://en.wikipedia.org/wiki/James_Joyce">James Joyce</a></td>
+  </tr>
+</table>
 ```
 
 ##Note

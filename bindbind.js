@@ -1,332 +1,280 @@
 /*
- * bindbind.js v0.2.4
- * https://github.com/ytiurin/bindbindjs
+ * bindbind.js
+ * https://github.com/ytiurin/bindbind.js
  *
- * Copyright (c) 2015 Yevhen Tiurin
- * Licensed under MIT (https://raw.githubusercontent.com/ytiurin/bindbindjs/master/LICENSE)
+ * The MIT License (MIT)
+ * Copyright (c) 2015 Yevhen Tiurin <yevhentiurin@gmail.com>
  *
- * June 21, 2015
+ * Aug 3, 2015
  */
 
-"use strict";
+'use strict';
 
 !function(){
-  var bindableElements,bbInstances,appendQueue,appendTimeId;
 
-  // ObservingWrapper
-  function cropArgs(args,n)
+var bindableElements,bbInstances,appendQueue,appendTimeId;
+
+// Observing proxy
+var observingProxy=function(ts,ps,cs,hs){
+
+  function getDeepPropertyDescriptors(o)
   {
-    return Array.prototype.slice.call(args,n);
-  }
+    var ns;
 
-  function getDeepPropertyNames(obj)
-  {
-    var proto,names,protoNames,reduceNames,i,n;
-
-    names=Object.getOwnPropertyNames(obj);
-    for(i=0,n=names.length;i<n;i++)
-      if(names[i].indexOf('__')===0&&names[i].lastIndexOf('__')===names[i].length-2){
-        names.splice(i,1);
-        i--;
-        n--;
-      }
-
-    (proto=Object.getPrototypeOf(obj)) && (names=names.concat(
-      getDeepPropertyNames(proto)));
-
-    return names;
-  }
-
-  function ObservingWrapper(sourceObject)
-  {
-    this.sourceObject=sourceObject||undefined;
-    this.observableKeys={};
-    this.changeHandlers=[];
-    this.changes=[];
-
-    Object.defineProperty(this.observableKeys,'__observingWrapper',{value:this});
-    this.defineObservableProperties();
-  }
-
-  ObservingWrapper.prototype.addChangeHandler=function(userChangeHandler,
-    callOnInit){
-
-    this.changeHandlers.indexOf(userChangeHandler)===-1&&this.changeHandlers
-      .push(userChangeHandler);
-
-    if(callOnInit||false){
-      var changes=[];
-      for(var key in this.sourceObject)
-        if(typeof this.sourceObject[key]!=='function')
-          changes.push({name:key,object:this.sourceObject,type:'update',
-            oldValue:this.sourceObject[key]});
-
-      userChangeHandler.call(this.sourceObject,changes);
-    }
-  }
-
-  ObservingWrapper.prototype.defineObservableProperties = function() {
-    for(var propertyNames=getDeepPropertyNames(this.sourceObject,this.observableKeys),
-      i=0,n=propertyNames.length; i<n; i++)
-      this.defineObservableProperty(propertyNames[i]);
-  }
-
-  ObservingWrapper.prototype.defineObservableProperty = function(propertyName) {
-    var ow=this,isEnum=typeof this.sourceObject[propertyName]!=='function';
-
-    function get() {
-      return ow.getPropertyValue(propertyName);
+    if(o){
+      ns=getDeepPropertyDescriptors(Object.getPrototypeOf(o))||[];
+      Array.prototype.push.apply(ns,
+        Object.getOwnPropertyNames(o)
+          .filter(function(k){
+            return isNaN(parseInt(k))})
+          .map(function(k){
+            return {name:k,descriptor:Object.getOwnPropertyDescriptor(o,k)}}));
     }
 
-    function set(userValue) {
-      ow.setPropertyValue(propertyName, userValue);
-    }
-    
-    Object.defineProperty(this.observableKeys, propertyName, {enumerable:isEnum, 
-      configurable:true, get:get, set:set});
+    return ns;
   }
 
-  ObservingWrapper.prototype.getPropertyValue=function(propertyName){
-    var ow=this;
-    return typeof this.sourceObject[propertyName]!=='function'
-      ? this.sourceObject[propertyName] 
-      : function(){var len,res,change,so;
-
-          len=ow.sourceObject.length,
-          res=ow.sourceObject[propertyName].apply(ow.sourceObject,arguments);
-
-          if(len&&len!==ow.sourceObject.length)
-            ow.undefineObservableProperties(),
-            ow.defineObservableProperties();
-
-          so=ow.sourceObject;
-          change={name:propertyName,object:so,type:'call',arguments:arguments,
-            result:res};
-          
-          if(propertyName==='push')
-            change={object:so,type:'splice',index:ow.sourceObject.length-1,
-              removed:[],addedCount:1};
-          
-          else if(propertyName==='splice')
-            change={object:so,type:'splice',index:arguments[0],removed:res,
-              addedCount:cropArgs(arguments,2).length};
-
-          ow.changes.push(change);
-          setTimeout(function(){ow.notifyObservers()});
-
-          return res;
-        };
-  }
-
-  ObservingWrapper.prototype.notifyObservers=function(){
-    var changes=this.changes.splice(0,this.changes.length);
-
-    if(changes.length)
-      for(var i=0;i<this.changeHandlers.length;i++)
-        this.changeHandlers[i].call(this.observableKeys,changes);
-  }
-
-  ObservingWrapper.prototype.removeChangeHandler=function(userChangeHandler){
-    var rmInd=this.changeHandlers.indexOf(userChangeHandler);
-    
-    rmInd>-1&&this.changeHandlers.splice(rmInd,1);
-  }
-
-  ObservingWrapper.prototype.setPropertyValue=function(propertyName,
-    propertyValue){
-
-    if(this.sourceObject[propertyName]!==propertyValue){
-      var oldValue=this.sourceObject[propertyName];
-      this.sourceObject[propertyName]=propertyValue;
-      this.changes.push({name:propertyName,object:this.sourceObject,type:
-        'update',oldValue:oldValue});
-      var ow=this;
-      setTimeout(function(){ow.notifyObservers()});
-    }
-  }
-
-  ObservingWrapper.prototype.undefineObservableProperties = function() {
-    for(var propertyNames=getDeepPropertyNames(this.observableKeys),i=0,n=
-      propertyNames.length; i<n; i++)
-      delete this.observableKeys[i];
-  }
-
-  // bindbind
-  function c(){console.log.apply(console,arguments)}
-
-  function route(obj)
+  function newProxy(t)
   {
-    function getRouteModifier(route)
-    {
-      function getValue()
-      {
-        if(route.length===0)
-          return obj;
+    var p={},ns=getDeepPropertyDescriptors(t);
 
-        return obj[route[a]];
+    for(var i=ns.length;i--;){
+      delete ns[i].descriptor.value;
+      delete ns[i].descriptor.writable;
+
+      ns[i].descriptor.get=propertyGetter.bind({target:t,name:ns[i].name});
+      ns[i].descriptor.set=propertySetter.bind({target:t,name:ns[i].name});
+
+      try{
+        Object.defineProperty(p,ns[i].name,ns[i].descriptor);
       }
-
-      function setValue(value)
-      {
-        if(route.args===undefined)
-          obj[route[a]]=value;
-        else{
-          if(route.args.ind!==undefined)
-            route.args.splice(route.args.ind,1,value);
-          obj[route[a]].apply(obj,route.args);
-        }
-      }
-
-      function toString()
-      {
-        return getValue().toString();
-      }
-
-      var a=route.length-1;
-      if(a>0)
-        for(var b=0;b<a;b++)
-          obj=obj[route[b]];
-
-      var r={toString:toString};
-      Object.defineProperty(r,'value',{get:getValue,set:setValue,configurable:
-        true,enumerable:true});
-
-      return r;
+      catch(e){}
     }
 
-    return {using:getRouteModifier};
+    return p;
   }
 
-  function getObservingWrapper(obj)
+  function notifyObservers(target)
   {
-    var objWrapper;
+    var i=targetIndex(target);
 
-    if(!obj)
-      return obj;
+    if(cs[i].length)
+      for(var l=0;l<hs[i].length;l++)
+        hs[i][l].call(this,cs[i]);
 
-    if(obj.observableKeys)
-      objWrapper=obj;
-    else
-      for(var i=0;i<this.wrappers.length;i++)
-        if(this.wrappers[i].sourceObject===obj){
-          objWrapper=this.wrappers[i];
-          break;
-        }
-
-    if(!objWrapper)
-      this.wrappers.push(objWrapper=new ObservingWrapper(obj));
-
-    return objWrapper;
+    cs[i]=[];
   }
 
-  function appendElement(el)
+  function propertyGetter()
   {
-    if(el.anchor.parentNode)
-      el.anchor.parentNode.insertBefore(el.clone,el.anchor);
-    else
-      el.parent.appendChild(el.clone);
-  }
+    var r=this.target[this.name];
 
-  function continueAppendElements(animate)
-  {
-    if(appendTimeId)
-      return;
+    if(Array.isArray(this.target)&&['pop','push','shift','splice','unshift'].
+      indexOf(this.name)>-1)
+      r=function(){
+        var res=this.target[this.name].apply(this.target,arguments);
 
-    if(!appendQueue.length)
-      return;
-
-    var el=appendQueue.splice(0,1)[0];
-    var element=el.clone;
-    appendElement(el);
-
-    if(animate){
-      var t={
-        opacity:element.style.opacity,
-        transition:element.style.transition
-      }
-      element.style.opacity='0';
-      element.style.transition='all 0.7s';
-      setTimeout(function(){
-        element.style.opacity='1';
+        cs[targetIndex(this.target)].push(({
+          'pop':{object:this.target,type:'splice',index:this.target.length-1,
+            removed:[res],addedCount:0},
+          'push':{object:this.target,type:'splice',index:this.target.length-1,
+            removed:[],addedCount:1},
+          'shift':{object:this.target,type:'splice',index:0,removed:[res],
+            addedCount:0},
+          'splice':{object:this.target,type:'splice',index:arguments[0],
+            removed:res,addedCount:Array.prototype.slice.call(arguments,2).length},
+          'unshift':{object:this.target,type:'splice',index:0,removed:[],
+            addedCount:1}
+        })[this.name]);
 
         setTimeout(function(){
-          element.style.transition=t.transition;
-          setTimeout(function(){
-            element.style.height=t.height;
-            element.style.opacity=t.opacity;
-          });
-        },700);
-      });
+          notifyObservers(this.target)}.bind(this));
+      }.bind(this);
 
-      appendTimeId=setTimeout(function(){
-        appendTimeId=0;
-        continueAppendElements(animate);
-      },100);
-    }
-    else
-      continueAppendElements(animate);
+    return r;
   }
 
-  function appendElements(es,animate)
+  function propertySetter(userVal)
   {
-    for(var i=0;i<es.length;i++)
-      appendQueue.push(es[i]);
-    continueAppendElements(animate);
+    var val=this.target[this.name];
+    if(val!==userVal){
+      this.target[this.name]=userVal;
+      cs[targetIndex(this.target)].push(
+        {name:this.name,object:this.target,type:'update',oldValue:val});
+      setTimeout(function(){
+        notifyObservers(this.target)}.bind(this));
+    }
   }
 
-  function animateTextReduceRaise(element,valuePath,text)
+  function targetIndex(t)
   {
-    function reduceText(params)
-    {
-      var text=route(params.element).using(params.valuePath).value.slice(0,-1);
-      route(params.element).using(params.valuePath).value=text;
+    var i=ts.indexOf(t);
 
-      if(text.length)
-        setTimeout(function(){reduceText(params)},10);
-      else
-        raiseText(params);
-    }
-    
-    function raiseText(params)
-    {
-      var l=route(params.element).using(params.valuePath).value.length+1;
-      var text=params.text.substr(0,l);
-      route(params.element).using(params.valuePath).value=text;
-
-      if(text.length!==params.text.length)
-        setTimeout(function(){raiseText(params)},10);
+    if(i===-1){
+      i=ts.push(t)-1;
+      ps.push(newProxy(t));
+      cs.push([]);
+      hs.push([]);
     }
 
-    reduceText({element:element,valuePath:valuePath,text:text});
+    return i;
   }
-  
-  function animateTextFill(element,valuePath,text)
-  {
-    function pm(i)
-    {
-      if(i<=maxI){
-        var s=elementValueRouter.value;
-        s=text.substr(0,i)+s.substr(i);
-        elementValueRouter.value=s;
-        setTimeout(function(){pm(i+1)},10);
+
+  return {
+    addChangeHandler:function(target,changeHandler,callOnInit){
+      var i=targetIndex(target);
+      hs[i].indexOf(changeHandler)===-1&&hs[i].push(changeHandler);
+
+      if(callOnInit){
+        var changes=Object.getOwnPropertyNames(target).map(function(key){
+          return {name:key,object:target,type:'update',oldValue:target[key]}
+        });
+        changeHandler.call(target,changes);
       }
+    },
+    getProxy:function(target){
+      return ps[targetIndex(target)];
+    },
+    removeChangeHandler:function(target,changeHandler){
+      var i=targetIndex(target),rmInd;
+      if((rmInd=hs[i].indexOf(changeHandler))>-1)
+        hs[i].splice(rmInd,1);
     }
-    
-    var elementValueRouter=route(element).using(valuePath);
-    var maxI=Math.max(text.length,elementValueRouter.value.length);
-    pm(1);
+  }
+}.bind(this)([],[],[],[]);
+
+// bindbind
+function c(){console.log.apply(console,arguments)}
+
+function touch(obj,path,newValue)
+{
+  var propName;
+
+  if(path.length===0)
+    return obj;
+
+  propName=path[path.length-1];
+  for(var b=0;b<path.length-1;b++)
+    if(obj[path[b]])
+      obj=obj[path[b]];
+    else
+      return;
+
+  if(path.args){
+    if(path.args.ind!==undefined)
+      path.args.splice(path.args.ind,1,newValue);
+    obj[propName].apply(obj,path.args);
+  }
+  else
+    if(newValue)
+      obj[propName]=newValue;
+
+  return obj[propName];
+}
+
+function appendElement(el)
+{
+  if(el.anchor.parentNode)
+    el.anchor.parentNode.insertBefore(el.clone,el.anchor);
+  else
+    el.parent.appendChild(el.clone);
+}
+
+function continueAppendElements(animate)
+{
+  if(appendTimeId)
+    return;
+
+  if(!appendQueue.length)
+    return;
+
+  var el=appendQueue.splice(0,1)[0];
+  var element=el.clone;
+  appendElement(el);
+
+  if(animate){
+    var t={
+      opacity:element.style.opacity,
+      transition:element.style.transition
+    }
+    element.style.opacity='0';
+    element.style.transition='all 0.7s';
+    setTimeout(function(){
+      element.style.opacity='1';
+
+      setTimeout(function(){
+        element.style.transition=t.transition;
+        setTimeout(function(){
+          element.style.height=t.height;
+          element.style.opacity=t.opacity;
+        });
+      },700);
+    });
+
+    appendTimeId=setTimeout(function(){
+      appendTimeId=0;
+      continueAppendElements(animate);
+    },100);
+  }
+  else
+    continueAppendElements(animate);
+}
+
+function appendElements(es,animate)
+{
+  for(var i=0;i<es.length;i++)
+    appendQueue.push(es[i]);
+  continueAppendElements(animate);
+}
+
+function animateTextReduceRaise(element,valuePath,text)
+{
+  function reduceText(params)
+  {
+    var text=touch(params.element,params.valuePath).slice(0,-1);
+    touch(params.element,params.valuePath,text);
+
+    if(text.length)
+      setTimeout(function(){reduceText(params)},10);
+    else
+      raiseText(params);
   }
 
-  function bindElementPaths2ArraySplice(bi)
+  function raiseText(params)
   {
-c('bindElementPaths2ArraySplice',{bi:bi})
+    var l=touch(params.element,params.valuePath).length+1;
+    var text=params.text.substr(0,l);
+    touch(params.element,params.valuePath,text);
 
-    var a,ow,inst=this;
+    if(text.length!==params.text.length)
+      setTimeout(function(){raiseText(params)},10);
+  }
 
-    a=[bi.modelProperty];
-    ow=getObservingWrapper.call(this,route(this.viewModel).using(a).value);
+  reduceText({element:element,valuePath:valuePath,text:text});
+}
 
-    ow.addChangeHandler(function(changes){
+function animateTextFill(element,valuePath,text)
+{
+  function pm(i)
+  {
+    if(i<=maxI){
+      var s=elementValueRouter.value;
+      s=text.substr(0,i)+s.substr(i);
+      elementValueRouter.value=s;
+      setTimeout(function(){pm(i+1)},10);
+    }
+  }
+
+  var maxI=Math.max(text.length,touch(element,valuePath).length);
+  pm(1);
+}
+
+function bindElementPaths2ArraySplice(bi)
+{
+  c('bindElementPaths2ArraySplice',{bi:bi})
+
+  observingProxy.addChangeHandler(touch(this.viewModel,[bi.modelProperty]),
+    function(changes){
       for(var m=changes.length;m--;)
         if(changes[m].type==='splice'){
           if(changes[m].addedCount){
@@ -336,290 +284,305 @@ c('bindElementPaths2ArraySplice',{bi:bi})
               var q=changes[m].index+k;
               var anchor=bi.anchorElements[q];
               var clone=anchor.cloneNode(true);
-              // clone.style.backgroundColor=(['lightseagreen','lightgreen','lightcoral','lightcyan','lavenderblush','lightblue'])[parseInt(Math.random()*5)]
+              // clone.style.backgroundColor=(['lightseagreen','lightgreen',
+              //   'lightcoral','lightcyan','lavenderblush','lightblue'])
+              //   [parseInt(Math.random()*5)];
               es.push({anchor:anchor,clone:clone,parent:bi.anchorParent});
               bi.anchorElements.splice(q,0,clone);
-              
+
               for(var i=0;i<bi.bindingData.length;i++){
                 var modelPath=bi.bindingData[i].modelPath.slice();
                 modelPath.splice(1,0,q);
-                bindElementPaths2ModelPath.call(inst,clone,bi.bindingData[i].
+                bindElementPaths2ModelPath.call(this,clone,bi.bindingData[i].
                   bindingPaths,modelPath);
               }
             }
 
-            appendElements(es,true);
+            appendElements(es,false);
           }
           else if(changes[m].removed.length){
             for(var k=0;k<changes[m].removed.length;k++){
               var s=changes[m].index+k;
               bi.anchorElements[s].parentNode.removeChild(bi.anchorElements[s]);
             }
-            
-            bi.anchorElements.splice(changes[m].index,changes[m].removed.length);
+
+            bi.anchorElements.splice(changes[m].index,
+              changes[m].removed.length);
           }
           break;
         }
-    },true);
-  }
+    }.bind(this),true);
+}
 
-  function bindModelProperty2Element(modelPath,element,valuePath)
-  {
-    c('bindModelPropertyToElement',{modelPath:modelPath,element:element,valuePath:valuePath})
-    var a,b,ow;
+function bindModelProperty2Element(modelPath,element,valuePath)
+{
+  c('bindModelPropertyToElement',{modelPath:modelPath,element:element,
+    valuePath:valuePath})
+  var a,b;
 
-    a=modelPath.slice(0,-1);
-    b=modelPath.slice(-1)[0];
-    ow=getObservingWrapper.call(this,route(this.viewModel).using(a).value);
+  a=modelPath.slice(0,-1);
+  b=modelPath.slice(-1)[0];
 
-    if(valuePath[valuePath.length-1]==='nodeValue'&&!route(element).using(
-      valuePath.concat().splice(0,2)).value)
-        element.appendChild(document.createTextNode(''));
-      
-    ow.addChangeHandler(function(changes){
+  if(valuePath[valuePath.length-1]==='nodeValue'&&!touch(element,
+    valuePath.concat().splice(0,2)))
+      element.appendChild(document.createTextNode(''));
+
+  observingProxy.addChangeHandler(touch(this.viewModel,a),
+    function(changes){
       for(var m=changes.length;m--;)
         if(changes[m].name===b){
-          if(valuePath[valuePath.length-1]==='nodeValue'&&valuePath[valuePath.length-3]!=='attributes')
-            // animateTextFill(element,valuePath,changes[m].object[changes[m].name]);
-animateTextReduceRaise(element,valuePath,changes[m].object[changes[m].name]);
-          else
-            route(element).using(valuePath).value=changes[m].object[changes[m].name];
+          // if(valuePath[valuePath.length-1]==='nodeValue'&&
+          //   valuePath[valuePath.length-3]!=='attributes')
+            // animateTextFill(element,valuePath,
+            //   changes[m].object[changes[m].name]);
+            // animateTextReduceRaise(element,valuePath,
+            //   changes[m].object[changes[m].name]);
+          // else
+            touch(element,valuePath,
+              changes[m].object[changes[m].name]);
           break;
         }
     },true);
-  }
+}
 
-  function bindElementPaths2ModelPath(anchorElement,bindingPaths,modelPath)
-  {
-    c('bindElementPaths2ModelPath',{anchorElement:anchorElement,bindingPaths:bindingPaths,modelPath:modelPath});
+function bindElementPaths2ModelPath(anchorElement,bindingPaths,modelPath)
+{
+  c('bindElementPaths2ModelPath',{anchorElement:anchorElement,bindingPaths:
+    bindingPaths,modelPath:modelPath});
 
-    for(var k=bindingPaths.length;k--;)
-      bindModelProperty2Element.call(this,modelPath,anchorElement,bindingPaths[k]);
-  }
+  for(var k=bindingPaths.length;k--;)
+    bindModelProperty2Element.call(this,modelPath,anchorElement,
+      bindingPaths[k]);
+}
 
-  function findBindingPaths(node,placeholder,nodePaths,pathPrefix)
-  {
-    var a,b,possiblePaths,path,k;
+function findBindingPaths(node,placeholder,nodePaths,pathPrefix)
+{
+  var a,b,possiblePaths,path,k;
 
-    nodePaths=nodePaths||[];
-    pathPrefix=pathPrefix||[];
+  nodePaths=nodePaths||[];
+  pathPrefix=pathPrefix||[];
 
-    [['nodeValue'],['value']].forEach(function(path){
-      var value=route(node).using(path).value;
+  [['nodeValue'],['value']].forEach(function(path){
+    var value=touch(node,path);
 
-      if(typeof value==='string'&&(placeholder?value.indexOf(placeholder)>-1:
-        true))
-          nodePaths.push(pathPrefix.concat(path));
+    if(typeof value==='string'&&(placeholder?value.indexOf(placeholder)>-1:
+      true))
+        nodePaths.push(pathPrefix.concat(path));
 
-      else if(value===null&&!placeholder)
-        nodePaths.push(pathPrefix.concat(['childNodes',0,'nodeValue']));
-    });
+    else if(value===null&&!placeholder)
+      nodePaths.push(pathPrefix.concat(['childNodes',0,'nodeValue']));
+  });
 
-    if(placeholder){
-      if(node.style)
-        for(k in node.style)
-          if((node.style.getPropertyValue(k)||'').indexOf(placeholder)>-1){
-            path=pathPrefix.concat(['style','setProperty']);
-            path.args=[k,undefined];
-            path.args.ind=1;
-            nodePaths.push(path);
-          }
+  if(placeholder){
+    if(node.style)
+      for(k in node.style)
+        if((node.style.getPropertyValue(k)||'').indexOf(placeholder)>-1){
+          path=pathPrefix.concat(['style','setProperty']);
+          path.args=[k,undefined];
+          path.args.ind=1;
+          nodePaths.push(path);
+        }
 
-      if(node.classList&&placeholder.indexOf(' ')===-1&&node.classList.contains(
-        placeholder))
-      {
-        path=pathPrefix.concat(['classList','remove']);
-        path.args=[placeholder];
-        nodePaths.push(path);
-      
-        path=pathPrefix.concat(['classList','add']);
-        path.args=[undefined];
-        path.args.ind=0;
-        nodePaths.push(path);
-      }
+    if(node.classList&&placeholder.indexOf(' ')===-1&&node.classList.contains(
+      placeholder))
+    {
+      path=pathPrefix.concat(['classList','remove']);
+      path.args=[placeholder];
+      nodePaths.push(path);
 
-      if(node.attributes)
-        for(k=node.attributes.length;k--;)
-          if(['style','class'].indexOf(node.attributes[k].nodeName)===-1)
-            if(node.attributes[k].nodeValue.indexOf(placeholder)>-1){
-              path=pathPrefix.concat(['attributes',k,'nodeValue']);
-              nodePaths.push(path);
-            }
+      path=pathPrefix.concat(['classList','add']);
+      path.args=[undefined];
+      path.args.ind=0;
+      nodePaths.push(path);
     }
 
-    if((a=node.childNodes.length)&&placeholder)
-      while(a--)
-        findBindingPaths(node.childNodes[a],placeholder,nodePaths,pathPrefix.
-          concat(['childNodes',a]));
-
-    return nodePaths;
-  }
-
-  function mergeBindingData(destData,srcData)
-  {
-    var a,modelPathIn;
-
-    modelPathIn=false;
-    for(a=0;a<destData.length;a++)
-      modelPathIn=destData[a].modelPath.reduce(function(r,m,i){
-        return srcData.modelPath[i]===m&&r},true)||modelPathIn;
-
-    if(!modelPathIn)
-      destData.push({modelPath:srcData.modelPath,bindingPaths:srcData.bindingPaths});
-  }
-
-  function mergeItemsIntoBindable(bindable,items)
-  {
-    var a,b;
-// c('^^',items)
-    for(a=0;a<items.length;a++){
-      for(b=0;b<bindable.length;b++){
-        if(bindable[b].modelProperty===items[a].modelPath[0]){
-          if(bindable[b].anchorElements.indexOf(items[a].anchorElement)===-1){
-            if(bindable[b].anchorElements[0].parentNode===items[a].anchorElement
-              .parentNode)
-            {
-              bindable[b].anchorElements.push(items[a].anchorElement);
-              items[a]=undefined;
-              break;
-            }
+    if(node.attributes)
+      for(k=node.attributes.length;k--;)
+        if(['style','class'].indexOf(node.attributes[k].nodeName)===-1)
+          if(node.attributes[k].value.indexOf(placeholder)>-1){
+            path=pathPrefix.concat(['attributes',k,'value']);
+            nodePaths.push(path);
           }
-          else{
-            mergeBindingData(bindable[b].bindingData,items[a])
+  }
+
+  if((a=node.childNodes.length)&&placeholder)
+    while(a--)
+      findBindingPaths(node.childNodes[a],placeholder,nodePaths,pathPrefix.
+        concat(['childNodes',a]));
+
+  return nodePaths;
+}
+
+function mergeBindingData(destData,srcData)
+{
+  var a,modelPathIn;
+
+  modelPathIn=false;
+  for(a=0;a<destData.length;a++)
+    modelPathIn=destData[a].modelPath.reduce(function(r,m,i){
+      return srcData.modelPath[i]===m&&r},true)||modelPathIn;
+
+  if(!modelPathIn)
+    destData.push({modelPath:srcData.modelPath,bindingPaths:
+      srcData.bindingPaths});
+}
+
+function mergeItemsIntoBindable(bindable,items)
+{
+  var a,b;
+// c('^^',items)
+  for(a=0;a<items.length;a++){
+    for(b=0;b<bindable.length;b++){
+      if(bindable[b].modelProperty===items[a].modelPath[0]){
+        if(bindable[b].anchorElements.indexOf(items[a].anchorElement)===-1){
+          if(bindable[b].anchorElements[0].parentNode===items[a].anchorElement
+            .parentNode)
+          {
+            bindable[b].anchorElements.push(items[a].anchorElement);
             items[a]=undefined;
             break;
           }
         }
+        else{
+          mergeBindingData(bindable[b].bindingData,items[a])
+          items[a]=undefined;
+          break;
+        }
       }
+    }
 // c('%%',items[a])
-      if(items[a])
-        bindable.push({anchorElements:[items[a].anchorElement],
-          anchorParent:items[a].anchorElement.parentNode,
-          bindingData:[{modelPath:items[a].modelPath,
-          bindingPaths:items[a].bindingPaths}],
-          modelProperty:items[a].modelPath[0]});
-    }
+    if(items[a])
+      bindable.push({anchorElements:[items[a].anchorElement],
+        anchorParent:items[a].anchorElement.parentNode,
+        bindingData:[{modelPath:items[a].modelPath,
+        bindingPaths:items[a].bindingPaths}],
+        modelProperty:items[a].modelPath[0]});
   }
+}
 
-  function collectBindableElements()
-  {
-    var a,b,d,e,f,g,h;
+function collectBindableElements()
+{
+  var a,b,d,e,f,g,h;
 
-    a=document.body.getElementsByTagName('*'),f=[];
+  a=document.body.getElementsByTagName('*'),f=[];
 
-    for(b=0;b<a.length;b++){
-      e=[];
-      
-      for(d=0;d<a[b].attributes.length;d++)
-        if(a[b].attributes[d].name.indexOf('bb-')===0){
-          g=a[b].attributes[d].name.substring(3).split(':').splice(0,2);
+  for(b=0;b<a.length;b++){
+    e=[];
 
-          e.push({anchorElement:a[b],modelPath:g,bindingPaths:
-            findBindingPaths(a[b],a[b].attributes[d].value)});
-        }
+    for(d=0;d<a[b].attributes.length;d++)
+      if(a[b].attributes[d].name.indexOf('bb-')===0){
+        g=a[b].attributes[d].name.substring(3).split(':').splice(0,2);
 
-      if(e.length)
-        mergeItemsIntoBindable(f,e);
-    }
-
-    return f;
-  }
-
-  function bind()
-  {
-    for(var l=0;l<bindableElements.length;l++){
-      var anchorElements=bindableElements[l].anchorElements;
-      var y=this.viewModel[bindableElements[l].modelProperty];
-      var u=(y.__observingWrapper&&y.__observingWrapper.sourceObject)||y;
-
-      if(u&&Array.isArray(u)){
-        if(u.length>1){
-          var es=[];
-
-          for(var q=0;q<u.length-1;q++){
-            if(anchorElements[q+1]!==undefined)
-              continue;
-
-            var f=anchorElements[q].cloneNode(true);
-            es.push({anchor:anchorElements[q],clone:f,next:true});
-
-            anchorElements.push(f);
-          }
-
-          appendElements(es,true);
-        }
-
-        if(anchorElements.length>u.length)
-          bindableElements[l].anchorElements=anchorElements.reduce(function(
-            r,anchor,i){
-            if(i>=u.length)
-              anchorElements[i].parentNode.removeChild(anchorElements[i]);
-            // else
-              r.push(anchor);
-            return r;
-          },[]);
-
-        bindElementPaths2ArraySplice.call(this,bindableElements[l]);
+        e.push({anchorElement:a[b],modelPath:g,bindingPaths:
+          findBindingPaths(a[b],a[b].attributes[d].value)});
       }
 
-      for(var o=bindableElements[l].bindingData.length;o--;){
-        var userModelPath=bindableElements[l].bindingData[o].modelPath;
-        var bindingPaths=bindableElements[l].bindingData[o].bindingPaths;
+    if(e.length)
+      mergeItemsIntoBindable(f,e);
+  }
 
-        if(Array.isArray(u))
-        {
-          for(var j=this.viewModel[userModelPath[0]].length;j--;){
-            var modelPath=userModelPath.slice();
-            modelPath.splice(1,0,j);
-            bindElementPaths2ModelPath.call(this,anchorElements[j],bindingPaths,modelPath);
-          }
+  return f;
+}
+
+function bind()
+{
+  for(var l=0;l<bindableElements.length;l++){
+    var anchorElements=bindableElements[l].anchorElements;
+    var anchorParent=bindableElements[l].anchorParent;
+    var u=this.viewModel[bindableElements[l].modelProperty];
+    // u=(u.__observingProxy&&u.__observingProxy.sourceObject)||u;
+
+    if(u&&Array.isArray(u)){
+      if(u.length>1){
+        var es=[];
+
+        for(var q=0;q<u.length-1;q++){
+          if(anchorElements[q+1]!==undefined)
+            continue;
+
+          var clone=anchorElements[q].cloneNode(true);
+          es.unshift({anchor:anchorElements[q],clone:clone,parent:anchorParent
+            });
+
+          anchorElements.unshift(clone);
         }
-        else
-          bindElementPaths2ModelPath.call(this,anchorElements[0],bindingPaths,userModelPath);
+
+        appendElements(es,false);
       }
+
+      if(anchorElements.length>u.length)
+        bindableElements[l].anchorElements=anchorElements.reduce(function(
+          r,anchor,i){
+          if(i>=u.length)
+            anchorElements[i].parentNode.removeChild(anchorElements[i]);
+          // else
+            r.push(anchor);
+          return r;
+        },[]);
+
+      bindElementPaths2ArraySplice.call(this,bindableElements[l]);
+    }
+
+    for(var o=bindableElements[l].bindingData.length;o--;){
+      var userModelPath=bindableElements[l].bindingData[o].modelPath;
+      var bindingPaths=bindableElements[l].bindingData[o].bindingPaths;
+
+      if(Array.isArray(u))
+        for(var j=this.viewModel[userModelPath[0]].length;j--;){
+          var modelPath=userModelPath.slice();
+          modelPath.splice(1,0,j);
+          bindElementPaths2ModelPath.call(this,anchorElements[j],bindingPaths,
+            modelPath);
+        }
+      else
+        bindElementPaths2ModelPath.call(this,anchorElements[0],bindingPaths,
+          userModelPath);
     }
   }
+}
 
-  function afterDOMContentLoaded()
-  {
-    bindableElements=collectBindableElements();
-    c('bindableElements',bindableElements);
+function afterDOMContentLoaded()
+{
+  bindableElements=collectBindableElements();
+  c('bindableElements',bindableElements);
 
-    for(var i=0;i<bbInstances.length;i++)
-      bind.call(bbInstances[i]);
-  }
+  for(var i=0;i<bbInstances.length;i++)
+    bind.call(bbInstances[i]);
+}
 
-  function bb(obj)
-  {
-    return getObservingWrapper.call(this,obj).observableKeys;
-  }
+function bb(obj)
+{
+  return observingProxy.getProxy(obj);
+}
 
-  function bbConstructor(userViewModel)
-  {
-    this.viewModel=userViewModel;
-    this.wrappers=[new ObservingWrapper(userViewModel)];
-
-    if(['interactive','complete'].indexOf(document.readyState)>-1)
-      bind.call(this);
-
-    var bbInstance=bb.bind(this);
-    bbInstances.push(this);
-
-    return bbInstance;
-  }
-
-  bbInstances=[];
-  appendQueue=[];
-  appendTimeId=0;
+function bbConstructor(userViewModel)
+{
+  this.viewModel=userViewModel;
+  this.proxies=[observingProxy.getProxy(userViewModel)];
 
   if(['interactive','complete'].indexOf(document.readyState)>-1)
-    afterDOMContentLoaded();
-  else
-    document.addEventListener("DOMContentLoaded",afterDOMContentLoaded,false);
+    bind.call(this);
 
-  if(window.define===undefined)
-    window.bindbind=bbConstructor;
-  else
-    define(function(){return bbConstructor});
+  var bbInstance=bb.bind(this);
+  bbInstances.push(this);
 
-}(window)
+  return bbInstance;
+}
+
+bbInstances=[];
+appendQueue=[];
+appendTimeId=0;
+
+if(['interactive','complete'].indexOf(document.readyState)>-1)
+  afterDOMContentLoaded();
+else
+  document.addEventListener("DOMContentLoaded",afterDOMContentLoaded,false);
+
+if(this.module&&this.module.exports)
+  this.module.exports=bbConstructor;
+else if(this.define&&this.define.amd)
+  this.define(function(){return bbConstructor});
+else
+  this.bindbind=bbConstructor;
+
+}.bind(this)()
