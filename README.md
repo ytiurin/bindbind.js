@@ -15,21 +15,21 @@ Declare binding anchors inside your HTML code
 
 Define view model and bind it to the DOM
 ```javascript
-var model = {writers:[]};
-var bb = new bindbind(model);
-// bb <- this is an observing proxy object,
+var myViewModel = {writers:[]};
+var _o = new bindbind(myViewModel);
+// _o <- this is an observing proxy object,
 //       it holds setters and getters of your
-//       model properties and notifies other
+//       object properties and notifies other
 //       objects about it's changes
 ```
 
 Update view model using observing proxy
 ```javascript
-bb(model.writers).push({
+_o(myViewModel.writers).push({
   name:'Joseph Conrad',
   uri:'https://en.wikipedia.org/wiki/Joseph_Conrad'});
 
-bb(model.writers).push({
+_o(myViewModel.writers).push({
   name:'James Joyce',
   uri:'https://en.wikipedia.org/wiki/James_Joyce'});
 ```
