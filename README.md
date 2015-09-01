@@ -4,7 +4,7 @@ bindbind.js
 Data binding made simple.
 
 ##Usage
-Declare binding anchors inside your HTML code.
+Declare binding anchors inside your HTML code
 ```html
 <table>
   <tr bb-writers:name="Unknown" bb-writers:uri="#nolink">
@@ -13,11 +13,11 @@ Declare binding anchors inside your HTML code.
 </table>
 ```
 
-Define view model and bind it to the DOM.
+Define view model and bind it to the DOM
 ```javascript
 var model = {writers:[]};
 var bb = new bindbind(model);
-// bb <- this is observing proxy object,
+// bb <- this is an observing proxy object,
 //       it holds setters and getters of your
 //       model properties and notifies other
 //       objects about it's changes
